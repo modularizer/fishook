@@ -344,7 +344,7 @@ run_one_cmd() {
   local cmd="$2"
   local -a hook_args=("${@:3}")
 
-  echo "[${hook}] \$ ${cmd}" >&2
+#  echo "[${hook}] \$ ${cmd}" >&2
   [[ "$DRY_RUN" -eq 1 ]] && return 0
 
   if [[ "${#hook_args[@]}" -gt 0 ]]; then
