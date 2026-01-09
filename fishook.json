@@ -1,44 +1,12 @@
 {
-  "_about": [
-    "fishook.json — full reference example (includes every hook)",
-    "",
-    "Keys are git hook names.",
-    "Values may be:",
-    "  - string",
-    "  - array of strings (run in order)",
-    "  - object with { \"run\": ... } (\"commands\" also works)",
-    "",
-    "Commands run via: bash -lc '<cmd> [hook-args...]'",
-    "Env vars available to commands:",
-    "  GIT_HOOK_KEY   = hook name",
-    "  GIT_HOOK_ARGS  = shell-quoted args passed by git"
-  ],
-
-  "applypatch-msg": "echo applypatch-msg: validate patch commit message file=$1",
-  "pre-applypatch": "echo pre-applypatch: before applying patch (git am)",
-  "post-applypatch": "echo post-applypatch: after applying patch (git am)",
-
-  "pre-commit": ["echo pre-commit: before commit", "echo pre-commit: run lint/tests here"],
-  "pre-merge-commit": "echo pre-merge-commit: before merge commit",
-  "prepare-commit-msg": "echo prepare-commit-msg: preparing message file=$1 source=$2 extra=$3",
-  "commit-msg": "echo commit-msg: validate commit message file=$1",
-  "post-commit": "echo post-commit: after commit created",
-
-  "pre-rebase": "echo pre-rebase: before rebase upstream=$1 branch=$2",
-  "post-checkout": "echo post-checkout: after checkout old=$1 new=$2 flag=$3",
-  "post-merge": "echo post-merge: after merge (squash=$1)",
-  "post-rewrite": { "run": ["echo post-rewrite: rewritten by $1", "echo post-rewrite: stdin has old/new oids"] },
-
-  "pre-push": { "run": ["echo pre-push: remote=$1 url=$2", "echo pre-push: stdin has ref updates"] },
-  "pre-auto-gc": "echo pre-auto-gc: before git gc --auto",
-
-  "pre-receive": { "run": ["echo pre-receive: server-side (not on GitHub)", "echo pre-receive: stdin old new ref"] },
-  "update": "echo update: server-side per-ref ref=$1 old=$2 new=$3 (not on GitHub)",
-  "post-receive": { "run": ["echo post-receive: server-side (not on GitHub)", "echo post-receive: stdin old new ref"] },
-  "post-update": "echo post-update: server-side refs updated: $@ (not on GitHub)",
-  "push-to-checkout": "echo push-to-checkout: server-side update checked-out branch to $1 (not on GitHub)",
-  "proc-receive": { "run": ["echo proc-receive: server-side pkt-line protocol (not on GitHub)"] },
-
-  "sendemail-validate": "echo sendemail-validate: validate outgoing email patch body=$1 headers=$2",
-  "fsmonitor-watchman": "echo fsmonitor-watchman: fsmonitor hook"
+  "_about": "run `fishook list` to see all options",
+  "pre-commit": {
+      "onAdd": ["echo added $FISHOOK_PATH"],
+      "onChange": ["echo changed $FISHOOK_PATH"],
+      "onDelete": ["echo deleted $FISHOOK_PATH"],
+      "onMove": ["echo moved $FISHOOK_SRC -> $FISHOOK_DST"],
+      "onCopy": ["echo copied $FISHOOK_SRC -> $FISHOOK_DST"],
+      "onFileEvent": ["echo $FISHOOK_FILE_PATH changed with $FISHOOK_FILE_EVENT"],
+      "run": ["echo always runs once per hook too"]
+  }
 }

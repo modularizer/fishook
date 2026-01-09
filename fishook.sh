@@ -17,6 +17,16 @@
 #       * "string command"
 #       * ["cmd1", "cmd2", ...]
 #       * {"run": "cmd"} or {"run": ["cmd1","cmd2"]}  ("commands" also works)
+#       * optional event handlers (for any hook object; best-effort emission):
+#           {
+#             "run": ["echo runs once"],
+#             "onAdd": ["..."], "onChange": ["..."], "onDelete": ["..."],
+#             "onMove": ["..."], "onCopy": ["..."],
+#             "onFileEvent": ["..."],
+#             "onRefCreate": ["..."], "onRefUpdate": ["..."], "onRefDelete": ["..."],
+#             "onRefEvent": ["..."],
+#             "onEvent": ["..."]
+#           }
 
 set -euo pipefail
 
@@ -39,9 +49,7 @@ DRY_RUN=0
 die() { echo "fishook: $*" >&2; exit 2; }
 
 in_git_repo() { git rev-parse --is-inside-work-tree >/dev/null 2>&1; }
-
 repo_root() { git rev-parse --show-toplevel 2>/dev/null; }
-
 git_dir() { git rev-parse --git-dir 2>/dev/null; }
 
 default_config_path() {
@@ -175,7 +183,7 @@ prompt_choice() {
   echo "$choice"
 }
 
-# Full sample config (all hooks). Written only if missing.
+# Full sample config (small). Written only if missing.
 write_sample_config() {
   local path="$1"
   local dir
@@ -189,55 +197,36 @@ write_sample_config() {
 
   cat >"$path" <<'EOF'
 {
-  "_about": [
-    "fishook.json — full reference example (includes every hook)",
-    "",
-    "Keys are git hook names.",
-    "Values may be:",
-    "  - string",
-    "  - array of strings (run in order)",
-    "  - object with { \"run\": ... } (\"commands\" also works)",
-    "",
-    "Commands run via: bash -lc '<cmd> [hook-args...]'",
-    "Env vars available to commands:",
-    "  GIT_HOOK_KEY   = hook name",
-    "  GIT_HOOK_ARGS  = shell-quoted args passed by git"
-  ],
-
-  "applypatch-msg": "echo applypatch-msg: validate patch commit message file=$1",
-  "pre-applypatch": "echo pre-applypatch: before applying patch (git am)",
-  "post-applypatch": "echo post-applypatch: after applying patch (git am)",
-
-  "pre-commit": ["echo pre-commit: before commit", "echo pre-commit: run lint/tests here"],
-  "pre-merge-commit": "echo pre-merge-commit: before merge commit",
-  "prepare-commit-msg": "echo prepare-commit-msg: preparing message file=$1 source=$2 extra=$3",
-  "commit-msg": "echo commit-msg: validate commit message file=$1",
-  "post-commit": "echo post-commit: after commit created",
-
-  "pre-rebase": "echo pre-rebase: before rebase upstream=$1 branch=$2",
-  "post-checkout": "echo post-checkout: after checkout old=$1 new=$2 flag=$3",
-  "post-merge": "echo post-merge: after merge (squash=$1)",
-  "post-rewrite": { "run": ["echo post-rewrite: rewritten by $1", "echo post-rewrite: stdin has old/new oids"] },
-
-  "pre-push": { "run": ["echo pre-push: remote=$1 url=$2", "echo pre-push: stdin has ref updates"] },
-  "pre-auto-gc": "echo pre-auto-gc: before git gc --auto",
-
-  "pre-receive": { "run": ["echo pre-receive: server-side (not on GitHub)", "echo pre-receive: stdin old new ref"] },
-  "update": "echo update: server-side per-ref ref=$1 old=$2 new=$3 (not on GitHub)",
-  "post-receive": { "run": ["echo post-receive: server-side (not on GitHub)", "echo post-receive: stdin old new ref"] },
-  "post-update": "echo post-update: server-side refs updated: $@ (not on GitHub)",
-  "push-to-checkout": "echo push-to-checkout: server-side update checked-out branch to $1 (not on GitHub)",
-  "proc-receive": { "run": ["echo proc-receive: server-side pkt-line protocol (not on GitHub)"] },
-
-  "sendemail-validate": "echo sendemail-validate: validate outgoing email patch body=$1 headers=$2",
-  "fsmonitor-watchman": "echo fsmonitor-watchman: fsmonitor hook"
+  "_about": "run `fishook list` to see all options",
+  "pre-commit": {
+    "run": ["echo pre-commit (once): repo=$FISHOOK_REPO_NAME root=$FISHOOK_REPO_ROOT"],
+    "onFileEvent": ["echo file $FISHOOK_EVENT $FISHOOK_PATH"]
+  }
 }
 EOF
 
   echo "fishook: wrote sample config: ${path}" >&2
 }
 
-# Normalize the configured entry to a JSON array of commands for a hook.
+# Normalize a JSON value into an array of commands.
+# - null/missing -> []
+# - string       -> [string]
+# - array        -> array
+# - object       -> (.run // .commands) normalized similarly (used by older format)
+normalize_any_to_array() {
+  jq -c '
+    def normalize:
+      if . == null then []
+      elif (type == "string") then [.]
+      elif (type == "array") then .
+      elif (type == "object") then (.run // .commands) | normalize
+      else error("hook entry must be string, array, or object")
+      end;
+    normalize
+  '
+}
+
+# Normalize the configured entry to a JSON array of commands for a hook (legacy/simple).
 # Output: JSON array (possibly empty).
 normalized_cmds_json() {
   local hook="$1"
@@ -252,6 +241,39 @@ normalized_cmds_json() {
       end;
     (.[$key] // null) | normalize
   ' "$config"
+}
+
+# Pull a hook's raw JSON entry (or empty).
+hook_entry_json() {
+  local hook="$1"
+  jq -c --arg key "$hook" '(.[$key] // empty)' "$CONFIG_PATH"
+}
+
+# Normalize a particular key inside a hook object to an array-of-strings JSON array.
+# If hook isn't an object, returns [].
+hook_object_key_cmds_json() {
+  local hook="$1"
+  local key="$2"
+  jq -c --arg h "$hook" --arg k "$key" '
+    def normalize:
+      if . == null then []
+      elif type=="string" then [.]
+      elif type=="array" then .
+      elif type=="object" then (.run // .commands) | normalize
+      else error("invalid command value")
+      end;
+
+    (.[$h] // null) as $entry
+    | if ($entry|type) != "object" then []
+      else ($entry[$k] // null) | normalize
+      end
+  ' "$CONFIG_PATH"
+}
+
+# Check whether a hook entry is an object (event-capable).
+hook_entry_is_object() {
+  local hook="$1"
+  jq -e --arg h "$hook" '(.[$h] // null) | (type=="object")' "$CONFIG_PATH" >/dev/null 2>&1
 }
 
 # ---- hook explanations (short, useful defaults) ----
@@ -284,11 +306,318 @@ hook_explain_text() {
   esac
 }
 
+# ---- env vars ----
+export_base_env() {
+  local hook="$1"
+  local root gd
+  root="$(repo_root)" || root=""
+  gd="$(git_dir)" || gd=""
+
+  export FISHOOK_HOOK="$hook"
+  export FISHOOK_REPO_ROOT="$root"
+  export FISHOOK_REPO_NAME="$(basename "$root" 2>/dev/null || echo "")"
+  export FISHOOK_GIT_DIR="$gd"
+  export FISHOOK_CONFIG_PATH="$CONFIG_PATH"
+  export FISHOOK_HOOKS_PATH="$HOOKS_PATH"
+  export FISHOOK_DRY_RUN="$DRY_RUN"
+  export FISHOOK_CWD="$(pwd)"
+  export FISHOOK_ARGV0="$0"
+}
+
+clear_event_env() {
+  unset FISHOOK_EVENT_KIND FISHOOK_EVENT FISHOOK_STATUS
+  unset FISHOOK_PATH FISHOOK_ABS_PATH
+  unset FISHOOK_SRC FISHOOK_DST FISHOOK_ABS_SRC FISHOOK_ABS_DST
+  unset FISHOOK_REF FISHOOK_OLD_OID FISHOOK_NEW_OID
+  unset FISHOOK_REMOTE_NAME FISHOOK_REMOTE_URL
+}
+
+abs_in_repo() {
+  local rel="$1"
+  [[ -z "$FISHOOK_REPO_ROOT" ]] && echo "$rel" && return 0
+  echo "${FISHOOK_REPO_ROOT%/}/${rel}"
+}
+
+# ---- execution helpers ----
+run_one_cmd() {
+  local hook="$1"
+  local cmd="$2"
+  local -a hook_args=("${@:3}")
+
+  echo "[${hook}] \$ ${cmd}" >&2
+  [[ "$DRY_RUN" -eq 1 ]] && return 0
+
+  if [[ "${#hook_args[@]}" -gt 0 ]]; then
+    local args_quoted
+    args_quoted="$(printf '%q ' "${hook_args[@]}" | sed 's/ $//')"
+    bash -lc "${cmd} ${args_quoted}"
+  else
+    bash -lc "${cmd}"
+  fi
+}
+
+run_cmds_array() {
+  local hook="$1"
+  local -a cmds=("${@:2}")
+  local i=0 total="${#cmds[@]}"
+  for cmd in "${cmds[@]}"; do
+    i=$((i + 1))
+    run_one_cmd "${hook}" "${cmd}"
+  done
+}
+
+# Load JSON array -> bash array
+json_array_to_bash_array() {
+  local json="$1"
+  mapfile -t _OUT < <(printf '%s' "$json" | jq -r '.[]')
+}
+
+# ---- event dispatch (handlers) ----
+# Call handlers in order: specific -> kind-generic -> universal
+dispatch_event_handlers() {
+  local hook="$1"
+  local -a hook_args=("${@:2}")
+
+  local specific=""
+  local kind_generic=""
+  local universal="onEvent"
+
+  if [[ "${FISHOOK_EVENT_KIND:-}" == "file" ]]; then
+    kind_generic="onFileEvent"
+    case "${FISHOOK_EVENT:-}" in
+      add) specific="onAdd" ;;
+      change) specific="onChange" ;;
+      delete) specific="onDelete" ;;
+      move) specific="onMove" ;;
+      copy) specific="onCopy" ;;
+    esac
+  elif [[ "${FISHOOK_EVENT_KIND:-}" == "ref" ]]; then
+    kind_generic="onRefEvent"
+    case "${FISHOOK_EVENT:-}" in
+      ref_create) specific="onRefCreate" ;;
+      ref_update) specific="onRefUpdate" ;;
+      ref_delete) specific="onRefDelete" ;;
+    esac
+  fi
+
+  local key
+  for key in "$specific" "$kind_generic" "$universal"; do
+    [[ -z "$key" ]] && continue
+    local cmds_json
+    cmds_json="$(hook_object_key_cmds_json "$hook" "$key")"
+    [[ "$cmds_json" == "[]" ]] && continue
+    mapfile -t CMDS < <(printf '%s' "$cmds_json" | jq -r '.[]')
+    for cmd in "${CMDS[@]}"; do
+      run_one_cmd "$hook" "$cmd" "${hook_args[@]}"
+    done
+  done
+}
+
+# ---- event emitters ----
+emit_file_events_from_name_status_z() {
+  local hook="$1"
+  shift || true
+  local -a hook_args=("$@")
+
+  # input is: status\0path\0  OR  Rxxx\0src\0dst\0, Cxxx\0src\0dst\0
+  while IFS= read -r -d '' status; do
+    case "$status" in
+      A|M|D)
+        IFS= read -r -d '' path || true
+        clear_event_env
+        export FISHOOK_EVENT_KIND="file"
+        export FISHOOK_STATUS="$status"
+        export FISHOOK_PATH="$path"
+        export FISHOOK_ABS_PATH="$(abs_in_repo "$path")"
+        case "$status" in
+          A) export FISHOOK_EVENT="add" ;;
+          M) export FISHOOK_EVENT="change" ;;
+          D) export FISHOOK_EVENT="delete" ;;
+        esac
+        dispatch_event_handlers "$hook" "${hook_args[@]}"
+        ;;
+      R*|C*)
+        IFS= read -r -d '' src || true
+        IFS= read -r -d '' dst || true
+        clear_event_env
+        export FISHOOK_EVENT_KIND="file"
+        export FISHOOK_STATUS="$status"
+        export FISHOOK_SRC="$src"
+        export FISHOOK_DST="$dst"
+        export FISHOOK_ABS_SRC="$(abs_in_repo "$src")"
+        export FISHOOK_ABS_DST="$(abs_in_repo "$dst")"
+        case "$status" in
+          R*) export FISHOOK_EVENT="move" ;;
+          C*) export FISHOOK_EVENT="copy" ;;
+        esac
+        dispatch_event_handlers "$hook" "${hook_args[@]}"
+        ;;
+      *)
+        # ignore other statuses
+        :
+        ;;
+    esac
+  done
+}
+
+emit_pre_commit_file_events() {
+  local hook="$1"; shift || true
+  local -a hook_args=("$@")
+  git diff --cached --name-status -z | emit_file_events_from_name_status_z "$hook" "${hook_args[@]}"
+}
+
+emit_diff_tree_file_events() {
+  local hook="$1"
+  local old="$2"
+  local new="$3"
+  shift 3 || true
+  local -a hook_args=("$@")
+
+  # If old/new are invalid, skip.
+  git cat-file -e "${old}^{commit}" >/dev/null 2>&1 || return 0
+  git cat-file -e "${new}^{commit}" >/dev/null 2>&1 || return 0
+
+  git diff-tree -r --name-status -z "$old" "$new" | emit_file_events_from_name_status_z "$hook" "${hook_args[@]}"
+}
+
+emit_post_checkout_file_events() {
+  local hook="$1"; shift || true
+  local -a hook_args=("$@")
+  # args: old new flag
+  local old="${hook_args[0]:-}"
+  local new="${hook_args[1]:-}"
+  [[ -n "$old" && -n "$new" ]] || return 0
+  emit_diff_tree_file_events "$hook" "$old" "$new" "${hook_args[@]}"
+}
+
+emit_post_merge_file_events() {
+  local hook="$1"; shift || true
+  local -a hook_args=("$@")
+  # best effort: ORIG_HEAD..HEAD
+  local old=""
+  old="$(git rev-parse -q --verify ORIG_HEAD 2>/dev/null || true)"
+  local new=""
+  new="$(git rev-parse -q --verify HEAD 2>/dev/null || true)"
+  [[ -n "$old" && -n "$new" ]] || return 0
+  emit_diff_tree_file_events "$hook" "$old" "$new" "${hook_args[@]}"
+}
+
+emit_ref_events_pre_push() {
+  local hook="$1"; shift || true
+  local -a hook_args=("$@")
+  # args: remote_name remote_url
+  local remote_name="${hook_args[0]:-}"
+  local remote_url="${hook_args[1]:-}"
+
+  # stdin lines: <local ref> <local oid> <remote ref> <remote oid>
+  while read -r local_ref local_oid remote_ref remote_oid; do
+    [[ -z "${local_ref:-}" ]] && continue
+    clear_event_env
+    export FISHOOK_EVENT_KIND="ref"
+    export FISHOOK_REMOTE_NAME="$remote_name"
+    export FISHOOK_REMOTE_URL="$remote_url"
+    export FISHOOK_REF="$remote_ref"
+    export FISHOOK_OLD_OID="$remote_oid"
+    export FISHOOK_NEW_OID="$local_oid"
+
+    if [[ "${remote_oid:-}" =~ ^0+$ ]]; then
+      export FISHOOK_EVENT="ref_create"
+    elif [[ "${local_oid:-}" =~ ^0+$ ]]; then
+      export FISHOOK_EVENT="ref_delete"
+    else
+      export FISHOOK_EVENT="ref_update"
+    fi
+
+    dispatch_event_handlers "$hook" "${hook_args[@]}"
+  done
+}
+
+emit_ref_events_receive_pack_stdin() {
+  local hook="$1"; shift || true
+  local -a hook_args=("$@")
+  # stdin lines: <old> <new> <ref>
+  while read -r old_oid new_oid ref; do
+    [[ -z "${ref:-}" ]] && continue
+    clear_event_env
+    export FISHOOK_EVENT_KIND="ref"
+    export FISHOOK_REF="$ref"
+    export FISHOOK_OLD_OID="$old_oid"
+    export FISHOOK_NEW_OID="$new_oid"
+
+    if [[ "${old_oid:-}" =~ ^0+$ ]]; then
+      export FISHOOK_EVENT="ref_create"
+    elif [[ "${new_oid:-}" =~ ^0+$ ]]; then
+      export FISHOOK_EVENT="ref_delete"
+    else
+      export FISHOOK_EVENT="ref_update"
+    fi
+
+    dispatch_event_handlers "$hook" "${hook_args[@]}"
+  done
+}
+
+emit_ref_event_update_args() {
+  local hook="$1"; shift || true
+  local -a hook_args=("$@")
+  # args: ref old new
+  local ref="${hook_args[0]:-}"
+  local old_oid="${hook_args[1]:-}"
+  local new_oid="${hook_args[2]:-}"
+  [[ -n "$ref" && -n "$old_oid" && -n "$new_oid" ]] || return 0
+
+  clear_event_env
+  export FISHOOK_EVENT_KIND="ref"
+  export FISHOOK_REF="$ref"
+  export FISHOOK_OLD_OID="$old_oid"
+  export FISHOOK_NEW_OID="$new_oid"
+
+  if [[ "$old_oid" =~ ^0+$ ]]; then
+    export FISHOOK_EVENT="ref_create"
+  elif [[ "$new_oid" =~ ^0+$ ]]; then
+    export FISHOOK_EVENT="ref_delete"
+  else
+    export FISHOOK_EVENT="ref_update"
+  fi
+
+  dispatch_event_handlers "$hook" "${hook_args[@]}"
+}
+
 # ---- commands ----
 do_list() {
+  echo "Client-side (patch / email workflows)"
   local h
-  for h in "${ALL_HOOKS[@]}"; do
-    echo "$h"
+  for h in applypatch-msg pre-applypatch post-applypatch sendemail-validate; do
+    printf "  %-18s %s\n" "$h" "$(hook_explain_text "$h")"
+  done
+  echo
+
+  echo "Client-side (commit workflow)"
+  for h in pre-commit pre-merge-commit prepare-commit-msg commit-msg post-commit; do
+    printf "  %-18s %s\n" "$h" "$(hook_explain_text "$h")"
+  done
+  echo
+
+  echo "Client-side (branch / history changes)"
+  for h in pre-rebase post-checkout post-merge post-rewrite; do
+    printf "  %-18s %s\n" "$h" "$(hook_explain_text "$h")"
+  done
+  echo
+
+  echo "Client-side (push / maintenance)"
+  for h in pre-push pre-auto-gc; do
+    printf "  %-18s %s\n" "$h" "$(hook_explain_text "$h")"
+  done
+  echo
+
+  echo "Server-side (bare repo / self-hosted only; not GitHub/GitLab.com)"
+  for h in pre-receive update post-receive post-update push-to-checkout proc-receive; do
+    printf "  %-18s %s\n" "$h" "$(hook_explain_text "$h")"
+  done
+  echo
+
+  echo "Performance"
+  for h in fsmonitor-watchman; do
+    printf "  %-18s %s\n" "$h" "$(hook_explain_text "$h")"
   done
 }
 
@@ -296,7 +625,6 @@ do_explain() {
   require_jq
   in_git_repo || die "not inside a git repository"
 
-  # parse flags + args
   local -a args=()
   mapfile -d '' -t args < <(parse_flags "$@")
 
@@ -304,28 +632,44 @@ do_explain() {
   [[ -n "$hook" ]] || die "usage: $0 explain <hook-name> [--config path] [--hooks-path PATH]"
   hook_known "$hook" || die "unknown hook: $hook"
 
-  if [[ -z "$CONFIG_PATH" ]]; then
-    CONFIG_PATH="$(default_config_path)"
-  fi
-  if [[ ! -f "$CONFIG_PATH" ]]; then
-    echo "fishook.json: (missing) ${CONFIG_PATH}" >&2
-  fi
+  [[ -n "$CONFIG_PATH" ]] || CONFIG_PATH="$(default_config_path)"
+  [[ -n "$HOOKS_PATH" ]] || HOOKS_PATH="$(default_hooks_path)"
 
   echo "$hook"
   echo "  $(hook_explain_text "$hook")"
 
-  if [[ -f "$CONFIG_PATH" ]]; then
-    local cmds_json
-    cmds_json="$(normalized_cmds_json "$hook" "$CONFIG_PATH")"
-    if [[ "$cmds_json" == "[]" ]]; then
-      echo "  configured actions: (none)"
-    else
-      echo "  configured actions:"
-      # one per line
-      printf '%s\n' "$cmds_json" | jq -r '.[]' | sed 's/^/    - /'
-    fi
+  if [[ ! -f "$CONFIG_PATH" ]]; then
+    echo "  fishook.json: (missing) ${CONFIG_PATH}"
+    return 0
+  fi
+
+  # Show legacy/simple run commands:
+  local cmds_json
+  cmds_json="$(normalized_cmds_json "$hook" "$CONFIG_PATH")"
+  if [[ "$cmds_json" == "[]" ]]; then
+    echo "  configured actions: (none)"
   else
-    echo "  configured actions: (cannot load config)"
+    echo "  configured actions (run):"
+    printf '%s\n' "$cmds_json" | jq -r '.[]' | sed 's/^/    - /'
+  fi
+
+  # If object, show any event handlers present
+  if hook_entry_is_object "$hook"; then
+    local keys=(
+      onAdd onChange onDelete onMove onCopy onFileEvent
+      onRefCreate onRefUpdate onRefDelete onRefEvent
+      onEvent
+    )
+    local any=0
+    local k
+    for k in "${keys[@]}"; do
+      local kjson
+      kjson="$(hook_object_key_cmds_json "$hook" "$k")"
+      [[ "$kjson" == "[]" ]] && continue
+      [[ $any -eq 0 ]] && echo "  configured handlers:" && any=1
+      echo "    ${k}:"
+      printf '%s\n' "$kjson" | jq -r '.[]' | sed 's/^/      - /'
+    done
   fi
 }
 
@@ -333,7 +677,6 @@ do_install() {
   require_jq
   in_git_repo || die "not inside a git repository"
 
-  # parse flags (ignore remaining)
   local -a _ignored=()
   mapfile -d '' -t _ignored < <(parse_flags "$@")
 
@@ -388,7 +731,6 @@ do_install() {
 do_uninstall() {
   in_git_repo || die "not inside a git repository"
 
-  # parse flags (ignore remaining)
   local -a _ignored=()
   mapfile -d '' -t _ignored < <(parse_flags "$@")
 
@@ -418,49 +760,65 @@ do_run_hook() {
   local hook="$1"; shift || true
   hook_known "$hook" || die "unknown hook: $hook"
 
-  # parse flags anywhere in the remaining args (so you can do: pre-commit --dry-run)
   local -a args=()
   mapfile -d '' -t args < <(parse_flags "$@")
   local -a hook_args=("${args[@]}")
 
   [[ -n "$CONFIG_PATH" ]] || CONFIG_PATH="$(default_config_path)"
+  [[ -n "$HOOKS_PATH" ]] || HOOKS_PATH="$(default_hooks_path)"
   [[ -f "$CONFIG_PATH" ]] || die "config not found: ${CONFIG_PATH}"
 
-  export GIT_HOOK_KEY="$hook"
-  export GIT_HOOK_ARGS="$(printf '%q ' "${hook_args[@]}" | sed 's/ $//')"
+  export_base_env "$hook"
+  export FISHOOK_ARGS="$(printf '%q ' "${hook_args[@]}" | sed 's/ $//')"
 
+  # Always set the legacy env too (keep compatibility)
+  export GIT_HOOK_KEY="$hook"
+  export GIT_HOOK_ARGS="$FISHOOK_ARGS"
+
+  # Step 1: run the legacy/simple "run" commands (string/array/object-run)
   local cmds_json
   cmds_json="$(normalized_cmds_json "$hook" "$CONFIG_PATH")"
-  [[ "$cmds_json" == "[]" ]] && exit 0
-
-  local -a cmds=()
-  mapfile -t cmds < <(printf '%s' "$cmds_json" | jq -r '.[]')
-  [[ "${#cmds[@]}" -eq 0 ]] && exit 0
-
-  local i=0 total="${#cmds[@]}"
-  local args_quoted=""
-  if [[ "${#hook_args[@]}" -gt 0 ]]; then
-    args_quoted="$(printf '%q ' "${hook_args[@]}" | sed 's/ $//')"
+  if [[ "$cmds_json" != "[]" ]]; then
+    mapfile -t CMDS < <(printf '%s' "$cmds_json" | jq -r '.[]')
+    local cmd
+    for cmd in "${CMDS[@]}"; do
+      run_one_cmd "$hook" "$cmd" "${hook_args[@]}"
+    done
   fi
 
-  for cmd in "${cmds[@]}"; do
-    i=$((i + 1))
-    echo "[${hook}] (${i}/${total}) \$ ${cmd}" >&2
-
-    if [[ "$DRY_RUN" -eq 1 ]]; then
-      continue
-    fi
-
-    if [[ -n "$args_quoted" ]]; then
-      bash -lc "${cmd} ${args_quoted}"
-    else
-      bash -lc "${cmd}"
-    fi
-  done
+  # Step 2: if this hook entry is an object, try to emit events and run handlers.
+  # (If no event handlers are configured, this is still safe/no-op.)
+  if hook_entry_is_object "$hook"; then
+    case "$hook" in
+      pre-commit)
+        emit_pre_commit_file_events "$hook" "${hook_args[@]}"
+        ;;
+      post-checkout)
+        emit_post_checkout_file_events "$hook" "${hook_args[@]}"
+        ;;
+      post-merge)
+        emit_post_merge_file_events "$hook" "${hook_args[@]}"
+        ;;
+      pre-push)
+        # pre-push ref updates are on stdin
+        emit_ref_events_pre_push "$hook" "${hook_args[@]}"
+        ;;
+      pre-receive|post-receive)
+        emit_ref_events_receive_pack_stdin "$hook" "${hook_args[@]}"
+        ;;
+      update)
+        emit_ref_event_update_args "$hook" "${hook_args[@]}"
+        ;;
+      *)
+        # no well-defined event stream; run-only already handled above
+        :
+        ;;
+    esac
+  fi
 }
 
 print_usage() {
-  cat >&2 <<'EOF'
+  cat >&2 <<EOF
 fishook
 
 Usage:
@@ -477,6 +835,10 @@ fishook.json:
       * "string command"
       * ["cmd1", "cmd2", ...]
       * {"run": "cmd"} or {"run": ["cmd1","cmd2"]}  ("commands" also works)
+      * optional event handlers inside any hook object:
+          onAdd/onChange/onDelete/onMove/onCopy/onFileEvent
+          onRefCreate/onRefUpdate/onRefDelete/onRefEvent
+          onEvent
 
 Examples:
   ./fishook.sh install
@@ -511,7 +873,6 @@ case "${CMD}" in
     do_explain "$@"
     ;;
   *)
-    # Treat as hook name
     do_run_hook "$CMD" "$@"
     ;;
 esac
