@@ -6,7 +6,7 @@
       "onDelete": ["echo deleted $FISHOOK_PATH"],
       "onMove": ["echo moved $FISHOOK_SRC -> $FISHOOK_DST"],
       "onCopy": ["echo copied $FISHOOK_SRC -> $FISHOOK_DST"],
-      "onFileEvent": ["echo $FISHOOK_PATH changed with '$FISHOOK_EVENT_KIND' event of '$FISHOOK_EVENT'"],
+      "onFileEvent": ["echo $FISHOOK_PATH changed with $FISHOOK_EVENT_KIND event of $FISHOOK_EVENT"],
       "run": ["echo always runs once per hook too"]
   }
 }
