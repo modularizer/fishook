@@ -1,0 +1,44 @@
+{
+  "name": "fishook",
+  "version": "1.0.0",
+  "description": "A tiny, Git-native hook runner driven by fishook.json. Installs stubs into .git/hooks and runs hook commands via bash -lc for any language/tooling.",
+  "bin": {
+    "fishook": "./fishook.sh"
+  },
+  "scripts": {
+    "postinstall": "./fishook.sh install",
+    "preuninstall": "./fishook.sh uninstall",
+
+    "install": "./fishook.sh install",
+    "uninstall": "./fishook.sh uninstall",
+    "list": "./fishook.sh list",
+
+    "applypatch-msg": "./fishook.sh applypatch-msg",
+    "pre-applypatch": "./fishook.sh pre-applypatch",
+    "post-applypatch": "./fishook.sh post-applypatch",
+
+    "pre-commit": "./fishook.sh pre-commit",
+    "pre-merge-commit": "./fishook.sh pre-merge-commit",
+    "prepare-commit-msg": "./fishook.sh prepare-commit-msg",
+    "commit-msg": "./fishook.sh commit-msg",
+    "post-commit": "./fishook.sh post-commit",
+
+    "pre-rebase": "./fishook.sh pre-rebase",
+    "post-checkout": "./fishook.sh post-checkout",
+    "post-merge": "./fishook.sh post-merge",
+    "post-rewrite": "./fishook.sh post-rewrite",
+
+    "pre-push": "./fishook.sh pre-push",
+    "pre-auto-gc": "./fishook.sh pre-auto-gc",
+
+    "pre-receive": "./fishook.sh pre-receive",
+    "update": "./fishook.sh update",
+    "post-receive": "./fishook.sh post-receive",
+    "post-update": "./fishook.sh post-update",
+    "push-to-checkout": "./fishook.sh push-to-checkout",
+    "proc-receive": "./fishook.sh proc-receive",
+
+    "sendemail-validate": "./fishook.sh sendemail-validate",
+    "fsmonitor-watchman": "./fishook.sh fsmonitor-watchman"
+  }
+}
