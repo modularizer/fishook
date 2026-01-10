@@ -7,7 +7,7 @@
     "onFileEvent": "$FISHOOK_COMMON/ensure-executable.sh",
     "applyTo": "*.sh"
   }, {
-    "run": "$FISHOOK_REPO_ROOT/scripts/sync-version.sh",
+    "onFileEvent": "$FISHOOK_REPO_ROOT/scripts/sync-version.sh",
     "applyTo": ["package.json"]
   }
   ],
