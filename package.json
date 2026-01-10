@@ -1,6 +1,6 @@
 {
   "name": "fishook",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A tiny, Git-native hook runner driven by fishook.json. Installs stubs into .git/hooks and runs hook commands via bash -lc for any language/tooling.",
   "files": [
     "fishook.sh",
