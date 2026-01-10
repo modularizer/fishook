@@ -491,45 +491,15 @@ run_one_cmd() {
   [[ -n "$setup_cmds" ]] && setup_cmds="${setup_cmds}; "
 
   # Helper funcs injected into the bash -lc scope (no temp files).
-  local scope
-  scope=$'\
-fishook_old_path(){ printf "%s\\n" "${FISHOOK_SRC:-${FISHOOK_PATH:-}}"; }\n\
-fishook_new_path(){ printf "%s\\n" "${FISHOOK_DST:-${FISHOOK_PATH:-}}"; }\n\
-old(){\n\
-  local p; p="$(fishook_old_path)"; [[ -z "$p" ]] && return 0\n\
-  if [[ -n "${FISHOOK_OLD_OID:-}" ]]; then git show "${FISHOOK_OLD_OID}:$p" 2>/dev/null || true\n\
-  else git show "HEAD:$p" 2>/dev/null || true\n\
-  fi\n\
-}\n\
-new(){\n\
-  local p; p="$(fishook_new_path)"; [[ -z "$p" ]] && return 0\n\
-  if [[ -n "${FISHOOK_NEW_OID:-}" ]]; then git show "${FISHOOK_NEW_OID}:$p" 2>/dev/null || true\n\
-  else git show ":$p" 2>/dev/null || cat -- "$p" 2>/dev/null || true\n\
-  fi\n\
-}\n\
-diff(){\n\
-  local p_old p_new p\n\
-  p_old="$(fishook_old_path)"; p_new="$(fishook_new_path)"; p="${p_new:-$p_old}"\n\
-  [[ -z "$p" ]] && return 0\n\
-  if [[ -n "${FISHOOK_OLD_OID:-}" && -n "${FISHOOK_NEW_OID:-}" ]]; then\n\
-    git diff --no-color --text "${FISHOOK_OLD_OID}" "${FISHOOK_NEW_OID}" -- "$p" 2>/dev/null || true\n\
-  else\n\
-    git diff --cached --no-color --text -- "$p" 2>/dev/null || true\n\
-  fi\n\
-}\n\
-raise(){\n\
-  echo "❌ ${FISHOOK_HOOK:-hook} failed on ${FISHOOK_PATH:-${FISHOOK_DST:-${FISHOOK_SRC:-?}}}: $1" >&2\n\
-  exit 1\n\
-}\n\
-export -f fishook_old_path fishook_new_path old new diff raise\n\
-'
+  # after setup_cmds
+  local scope_file="${FISHOOK_COMMON}/scope.sh"
 
   # Pass hook args as bash positional parameters ($1, $2, $3, etc.)
   # so users can access them if needed, but they won't be auto-appended to commands
   if [[ "${#hook_args[@]}" -gt 0 ]]; then
-    bash -lc "${setup_cmds}${scope}${cmd}" -- "${hook_args[@]}"
+    bash -lc "${setup_cmds}source \"${scope_file}\"; ${cmd}" -- "${hook_args[@]}"
   else
-    bash -lc "${setup_cmds}${scope}${cmd}"
+    bash -lc "${setup_cmds}source \"${scope_file}\"; ${cmd}"
   fi
 }
 
