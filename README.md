@@ -2,6 +2,15 @@
 
 Tiny git hook runner driven by `fishook.json`
 
+## Why?
+* protect yourself from committing secrets accidentally
+* run tests before committing
+* run linting and style checks before pushing
+* run CI/CD pipelines before merging PRs
+* auto-generate commit messages
+* auto-generate changelogs
+* etc.
+
 ## Install (coming soon)
 
 ### With node
