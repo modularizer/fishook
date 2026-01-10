@@ -1,8 +1,8 @@
 {
   "_about": "run `fishook list` to see all options",
   "pre-commit": [{
-    "onFileEvent": "$FISHOOK_COMMON/forbid-pattern.sh 'password' || true",
-    "skipList": ["fishook.sh"]
+    "onFileEvent": "$FISHOOK_COMMON/forbid-pattern.sh 'turtles' 'contains forbidden word (turtles)'",
+    "skipList": ["*fishook*"]
   }, {
     "onFileEvent": "$FISHOOK_COMMON/ensure-executable.sh",
     "applyTo": "*.sh"

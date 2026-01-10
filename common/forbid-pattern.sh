@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Usage: forbid-pattern.sh <pattern> <error-message>
-# Searches new() content for pattern and raises error if found, e.g. password check
+# Searches new() content for pattern and raises error if found
 
 PATTERN="${1:-}"
 MESSAGE="${2:-contains forbidden pattern}"
