@@ -85,14 +85,9 @@ For the most part, you don't even need to use the CLI, just edit the `fishook.js
 
 
 ## Available Hooks supported by git
-#### Client-side (patch / email workflows)
-* `applypatch-msg`     Runs during git am after extracting a patch commit message; validate/edit the message.
-* `pre-applypatch`     Runs during git am before committing the applied patch; can reject.
-* `post-applypatch`    Runs during git am after committing; notification only.
-* `sendemail-validate` Runs during git send-email to validate outgoing patch email; can reject.
 
 #### Client-side (commit workflow)
-* `pre-commit`         Runs before a commit is created; commonly lint/tests/format checks; can reject.
+* `pre-commit`         **Probably the most useful one** Runs before a commit is created; commonly lint/tests/format checks; can reject.
 * `pre-merge-commit`   Runs before creating a merge commit (when merge is clean); can reject.
 * `prepare-commit-msg` Runs before commit message editor opens; can prefill/edit message.
 * `commit-msg`         Runs after message is written; validate commit message; can reject.
@@ -107,6 +102,12 @@ For the most part, you don't even need to use the CLI, just edit the `fishook.js
 #### Client-side (push / maintenance)
 * `pre-push`           Runs before pushing; args remote_name/remote_url; stdin lists ref updates.
 * `pre-auto-gc`        Runs before git gc --auto; can abort.
+
+#### Client-side (patch / email workflows; a bit outdated)
+* `applypatch-msg`     Runs during git am after extracting a patch commit message; validate/edit the message.
+* `pre-applypatch`     Runs during git am before committing the applied patch; can reject.
+* `post-applypatch`    Runs during git am after committing; notification only.
+* `sendemail-validate` Runs during git send-email to validate outgoing patch email; can reject.
 
 #### Server-side (bare repo / self-hosted only; not GitHub/GitLab.com)
 * `pre-receive`        Server-side: before accepting pushed refs; stdin old/new/ref triples. Not run on GitHub.
