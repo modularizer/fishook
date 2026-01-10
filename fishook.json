@@ -6,6 +6,9 @@
   }, {
     "onFileEvent": "$FISHOOK_COMMON/ensure-executable.sh",
     "applyTo": "*.sh"
+  }, {
+    "run": "$FISHOOK_REPO_ROOT/scripts/sync-version.sh",
+    "applyTo": ["package.json"]
   }
   ],
   "post-checkout": "echo Nice! You checked out \"$(git branch --show-current)\" \"($(git rev-parse --short HEAD))\""
