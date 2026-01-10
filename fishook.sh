@@ -526,9 +526,9 @@ raise(){\n\
   # Pass hook args as bash positional parameters ($1, $2, $3, etc.)
   # so users can access them if needed, but they won't be auto-appended to commands
   if [[ "${#hook_args[@]}" -gt 0 ]]; then
-    bash -c "${setup_cmds}${scope}${cmd}" -- "${hook_args[@]}"
+    bash -lc "${setup_cmds}${scope}${cmd}" -- "${hook_args[@]}"
   else
-    bash -c "${setup_cmds}${scope}${cmd}"
+    bash -lc "${setup_cmds}${scope}${cmd}"
   fi
 }
 
