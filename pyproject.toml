@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fishook"
-version = "1.0.0"
+version = "0.1.0"
 description = "A tiny, Git-native hook runner driven by fishook.json. Installs stubs into .git/hooks and runs hook commands via bash -lc for any language/tooling."
 readme = "README.md"
 requires-python = ">=3.8"
@@ -66,4 +66,4 @@ fsmonitor-watchman = "fishook.cli:hook_fsmonitor_watchman"
 include-package-data = true
 
 [tool.setuptools.package-data]
-fishook = ["fishook.sh"]
+fishook = ["fishook.sh", "common/*"]

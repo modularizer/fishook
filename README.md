@@ -27,6 +27,32 @@ fishhook install                # install hooks
 ## Usage
 For the most part, you don't even need to use the CLI, just edit the `fishook.json` file in your repo, and those commands will be run automatically.
 
+### Multiple Configs
+Fishook supports multiple config files by searching for all `*fishook*.json` files in your repo:
+
+- **`fishook.json`** - Team-wide rules (tracked in git)
+- **`.fishook.local.json`** - git-ignored rules (maybe the rules are checking for secrets and have the secrets hardcoded? maybe individual users have specific checks they want to do)
+- **`src/fishook.json`** - Directory-scoped rules (only applies to `src/` and below)
+
+All matching configs are run in alphabetical order. Directory-scoped configs automatically only apply to files at their level or below. Searches up to 4 directory levels deep.
+
+**Example structure:**
+```
+repo/
+├── .gitignore
+├── fishook.json              # Team rules - applies to all files
+├── .fishook.local.json       # Your personal rules (gitignored)
+└── frontend/
+    └── fishook.json          # Only applies to frontend/ files
+```
+
+**`.gitignore`:**
+```
+.fishook.local.json
+```
+
+Now each developer can have their own `.fishook.local.json` for personal preferences!
+
 ### Basic
 ```json
 {
@@ -46,14 +72,8 @@ For the most part, you don't even need to use the CLI, just edit the `fishook.js
       "applyTo": ["*.js", "*.ts"],
       "skipList": ["vendor/**", "*.min.js", "dist/**"],
       "onChange": [
-        "new | grep -q 'console.log' && raise 'Remove console.log before committing'",
-        "new | grep -q 'debugger' && raise 'Remove debugger statements'"
-      ]
-    },
-    {
-      "applyTo": ["package.json", "package-lock.json"],
-      "onChange": [
-        "test -f package-lock.json && npm ci --dry-run || raise 'package-lock.json out of sync'"
+        "$FISHOOK_COMMON/forbid-pattern.sh 'console\\.log' 'Remove console.log before committing'",
+        "$FISHOOK_COMMON/forbid-pattern.sh 'debugger' 'Remove debugger statements'"
       ]
     },
     {
@@ -68,7 +88,7 @@ For the most part, you don't even need to use the CLI, just edit the `fishook.js
     {
       "skipList": ["*.md", "docs/**"],
       "onFileEvent": [
-        "new | grep -qiE '(password|secret|api[_-]?key)\\s*=\\s*[\"'\\'''][^\"'\\''']' && raise 'Potential secret detected' || true"
+        "$FISHOOK_COMMON/forbid-pattern.sh '(password|secret|api[_-]?key)\\s*=\\s*[\"'\\'''][^\"'\\''']' 'Potential secret detected' || true"
       ]
     }
   ],
@@ -192,6 +212,39 @@ type Spec = {
 }
 ```
 
+## Common Utilities
+
+Fishook includes reusable scripts in `$FISHOOK_COMMON/`:
+
+- **`forbid-pattern.sh <pattern> <message>`** - Fail if pattern found in file content
+- **`forbid-file-pattern.sh <pattern> <message>`** - Fail if file path matches pattern
+- **`ensure-executable.sh`** - Make the current file executable (use with `applyTo` filter)
+
+Examples:
+```json
+{
+  "pre-commit": [
+    {
+      "applyTo": ["*.js"],
+      "onChange": [
+        "$FISHOOK_COMMON/forbid-pattern.sh 'console\\.log' 'Remove console.log'"
+      ]
+    },
+    {
+      "onFileEvent": [
+        "$FISHOOK_COMMON/forbid-file-pattern.sh '\\.env$' 'Do not commit .env files'",
+        "$FISHOOK_COMMON/forbid-file-pattern.sh 'secret|credential' 'File name contains secret/credential'"
+      ]
+    },
+    {
+      "applyTo": ["*.sh", "scripts/*"],
+      "onAdd": ["$FISHOOK_COMMON/ensure-executable.sh"],
+      "onChange": ["$FISHOOK_COMMON/ensure-executable.sh"]
+    }
+  ]
+}
+```
+
 ## Scope
 Available in all commands (including `setup` and `source`):
 
@@ -202,6 +255,8 @@ Available in all commands (including `setup` and `source`):
 - `raise "msg"` - fail hook with message
 
 ### Environment Variables
+- `FISHOOK_COMMON` - path to fishook's common/ scripts directory (use for shared utilities)
+- `FISHOOK_CONFIG_DIR` - directory containing the current config file (for scoped configs)
 - `FISHOOK_REPO_ROOT` - absolute path to repo root (use this for paths!)
 - `FISHOOK_REPO_NAME` - repo directory name
 - `FISHOOK_HOOK` - hook name (pre-commit, commit-msg, etc)

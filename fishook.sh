@@ -74,6 +74,16 @@ default_config_path() {
   echo "${root}/fishook.json"
 }
 
+# Find all *fishook*.json files in the repo (for multi-config support)
+find_all_configs() {
+  local root
+  root="$(repo_root)" || die "not inside a git repository"
+
+  # Find all *fishook*.json files (tracked, untracked, and gitignored)
+  # Use find with limited depth to avoid performance issues in large repos
+  find "$root" -maxdepth 4 -name "*fishook*.json" -type f 2>/dev/null | sort -u
+}
+
 default_hooks_path() {
   local gd
   gd="$(git_dir)" || die "not inside a git repository"
@@ -393,6 +403,11 @@ export_base_env() {
   root="$(repo_root)" || root=""
   gd="$(git_dir)" || gd=""
 
+  # Find where fishook.sh is installed and set FISHOOK_COMMON to common/ directory
+  local fishook_dir
+  fishook_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  export FISHOOK_COMMON="${fishook_dir}/common"
+
   export FISHOOK_HOOK="$hook"
   export FISHOOK_REPO_ROOT="$root"
   export FISHOOK_REPO_NAME="$(basename "$root" 2>/dev/null || echo "")"
@@ -553,6 +568,17 @@ dispatch_event_handlers() {
     if [[ "${FISHOOK_EVENT_KIND:-}" == "file" ]]; then
       local p
       p="$(fishook_primary_path)"
+
+      # Check if file is within config directory scope (if FISHOOK_CONFIG_DIR is set)
+      if [[ -n "${FISHOOK_CONFIG_DIR:-}" ]]; then
+        local abs_p
+        abs_p="$(abs_in_repo "$p")"
+        # Check if file path starts with config directory path
+        if [[ "$abs_p" != "$FISHOOK_CONFIG_DIR"* ]]; then
+          continue
+        fi
+      fi
+
       local apply_json skip_json
       apply_json="$(block_apply_to_json "$block")"
       skip_json="$(block_skip_list_json "$block")"
@@ -933,38 +959,20 @@ do_uninstall() {
   echo "fishook: uninstalled stubs from ${HOOKS_PATH}" >&2
 }
 
-do_run_hook() {
-  require_jq
-  in_git_repo || die "not inside a git repository"
+run_hook_for_config() {
+  local hook="$1"
+  local config_file="$2"
+  shift 2 || true
+  local -a hook_args=("$@")
 
-  local hook="$1"; shift || true
-  hook_known "$hook" || die "unknown hook: $hook"
+  # Temporarily set CONFIG_PATH for this config file
+  local ORIGINAL_CONFIG_PATH="$CONFIG_PATH"
+  export CONFIG_PATH="$config_file"
 
-  local -a args=()
-  mapfile -d '' -t args < <(parse_flags "$@")
-  local -a hook_args=("${args[@]}")
-
-  [[ -n "$CONFIG_PATH" ]] || CONFIG_PATH="$(default_config_path)"
-  [[ -n "$HOOKS_PATH" ]] || HOOKS_PATH="$(default_hooks_path)"
-  [[ -f "$CONFIG_PATH" ]] || die "config not found: ${CONFIG_PATH}"
-
-  export_base_env "$hook"
-  export FISHOOK_ARGS="$(printf '%q ' "${hook_args[@]}" | sed 's/ $//')"
-
-  # Back-compat env
-  export GIT_HOOK_KEY="$hook"
-  export GIT_HOOK_ARGS="$FISHOOK_ARGS"
-
-  # Hook-specific env vars
-  case "$hook" in
-    post-checkout)
-      [[ "${#hook_args[@]}" -ge 2 ]] && export FISHOOK_REF="${hook_args[1]}" || true
-      ;;
-    pre-push)
-      [[ "${#hook_args[@]}" -ge 1 ]] && export FISHOOK_REMOTE_NAME="${hook_args[0]}" || true
-      [[ "${#hook_args[@]}" -ge 2 ]] && export FISHOOK_REMOTE_URL="${hook_args[1]}" || true
-      ;;
-  esac
+  # Set config directory scope (files must be at this level or below)
+  local config_dir
+  config_dir="$(dirname "$config_file")"
+  export FISHOOK_CONFIG_DIR="$config_dir"
 
   # Step 1: run "run" commands (legacy/simple + block .run concatenation)
   local run_json cmd
@@ -1001,6 +1009,68 @@ do_run_hook() {
         ;;
     esac
   fi
+
+  # Restore original CONFIG_PATH
+  export CONFIG_PATH="$ORIGINAL_CONFIG_PATH"
+}
+
+do_run_hook() {
+  require_jq
+  in_git_repo || die "not inside a git repository"
+
+  local hook="$1"; shift || true
+  hook_known "$hook" || die "unknown hook: $hook"
+
+  local -a args=()
+  mapfile -d '' -t args < <(parse_flags "$@")
+  local -a hook_args=("${args[@]}")
+
+  [[ -n "$HOOKS_PATH" ]] || HOOKS_PATH="$(default_hooks_path)"
+
+  export_base_env "$hook"
+  export FISHOOK_ARGS="$(printf '%q ' "${hook_args[@]}" | sed 's/ $//')"
+
+  # Back-compat env
+  export GIT_HOOK_KEY="$hook"
+  export GIT_HOOK_ARGS="$FISHOOK_ARGS"
+
+  # Hook-specific env vars
+  case "$hook" in
+    post-checkout)
+      [[ "${#hook_args[@]}" -ge 2 ]] && export FISHOOK_REF="${hook_args[1]}" || true
+      ;;
+    pre-push)
+      [[ "${#hook_args[@]}" -ge 1 ]] && export FISHOOK_REMOTE_NAME="${hook_args[0]}" || true
+      [[ "${#hook_args[@]}" -ge 2 ]] && export FISHOOK_REMOTE_URL="${hook_args[1]}" || true
+      ;;
+  esac
+
+  # Process configs: if --config specified, use only that; otherwise find all *fishook*.json
+  local -a config_files=()
+  if [[ -n "$CONFIG_PATH" ]]; then
+    # Single config specified via --config flag
+    [[ -f "$CONFIG_PATH" ]] || die "config not found: ${CONFIG_PATH}"
+    config_files=("$CONFIG_PATH")
+  else
+    # Multi-config mode: find all *fishook*.json files
+    mapfile -t config_files < <(find_all_configs)
+
+    # Fall back to default if no configs found
+    if [[ "${#config_files[@]}" -eq 0 ]]; then
+      local default_config
+      default_config="$(default_config_path)"
+      if [[ -f "$default_config" ]]; then
+        config_files=("$default_config")
+      fi
+    fi
+  fi
+
+  # Run hook for each config file found
+  local config_file
+  for config_file in "${config_files[@]}"; do
+    [[ -f "$config_file" ]] || continue
+    run_hook_for_config "$hook" "$config_file" "${hook_args[@]}"
+  done
 }
 
 print_usage() {

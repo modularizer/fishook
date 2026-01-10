@@ -1,8 +1,12 @@
 {
   "_about": "run `fishook list` to see all options",
-  "pre-commit": {
-    "onFileEvent": "new | grep -qi turtles && raise \"contains forbidden word 'turtles'\" || true",
+  "pre-commit": [{
+    "onFileEvent": "$FISHOOK_COMMON/forbid-pattern.sh '(password|secret|api[_-]?key)\\s*=\\s*[\"'\\'''][^\"'\\''']' 'Potential secret detected' || true",
     "skipList": ["fishook.json", "fishook.sh"]
-  },
+  }, {
+    "onFileEvent": "$FISHOOK_COMMIN/ensure-executable.sh",
+    "applyTo": "*.sh"
+  }
+  ],
   "post-checkout": "echo Nice! You checked out \"$(git branch --show-current)\" \"($(git rev-parse --short HEAD))\""
 }

@@ -1,7 +1,11 @@
 {
   "name": "fishook",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "A tiny, Git-native hook runner driven by fishook.json. Installs stubs into .git/hooks and runs hook commands via bash -lc for any language/tooling.",
+  "files": [
+    "fishook.sh",
+    "common/"
+  ],
   "bin": {
     "fishook": "./fishook.sh"
   },
