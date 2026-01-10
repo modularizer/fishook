@@ -212,8 +212,9 @@ write_sample_config() {
 {
   "_about": "run `fishook list` to see all options",
   "pre-commit": {
-      "onFileEvent": "new | grep -qi turtles && raise \"contains forbidden word 'turtles'\"",
-      "skipList": ["fishook.json", "fishook.sh"]
+    "run": ["echo pre-commit running on $FISHOOK_REPO_NAME"],
+    "onFileEvent": "new | grep -qi forbidden && raise \"contains forbidden word\" || true",
+    "skipList": ["fishook.json", "fishook.sh"]
   }
 }
 EOF

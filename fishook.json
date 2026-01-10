@@ -1,8 +1,8 @@
 {
   "_about": "run `fishook list` to see all options",
   "pre-commit": {
-      "onFileEvent": "new | grep -qi turtles && raise \"contains forbidden word 'turtles'\"",
-      "skipList": ["fishook.json", "fishook.sh"]
+    "onFileEvent": "new | grep -qi turtles && raise \"contains forbidden word 'turtles'\" || true",
+    "skipList": ["fishook.json", "fishook.sh"]
   },
   "post-checkout": "echo 'Nice! You checked out ${FISHOOK_REF}'"
 }
