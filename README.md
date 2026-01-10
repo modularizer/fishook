@@ -22,7 +22,7 @@ For the most part, you don't even need to use the CLI, just edit the `fishook.js
 ```json
 {
   "pre-commit": "npm test",
-  "post-checkout": "echo 'Nice! You checked out ${FISHOOK_REF}'"
+  "post-checkout": "echo Checked out: $FISHOOK_REF"
 }
 ```
 
@@ -198,8 +198,16 @@ Available in all commands (including `setup` and `source`):
 - `FISHOOK_EVENT` - event type (add, change, delete, move, copy)
 - `FISHOOK_PATH` - file path (add/change/delete)
 - `FISHOOK_SRC`, `FISHOOK_DST` - source/dest (move/copy)
-- `FISHOOK_REF` - ref name (ref events)
+- `FISHOOK_REF` - ref name (post-checkout: new HEAD; ref events in pre-push/update/etc)
 - `FISHOOK_OLD_OID`, `FISHOOK_NEW_OID` - commit oids
+- `FISHOOK_REMOTE_NAME`, `FISHOOK_REMOTE_URL` - remote info (pre-push only)
+
+### Positional Arguments
+Git hook arguments are available as `$1`, `$2`, `$3`, etc. if you need them:
+- `commit-msg`: `$1` = path to commit message file
+- `post-checkout`: `$1` = previous HEAD, `$2` = new HEAD, `$3` = branch checkout flag
+- `pre-push`: `$1` = remote name, `$2` = remote URL
+- Most commands use environment variables instead
 
 ## Requirements
 

@@ -4,5 +4,5 @@
     "onFileEvent": "new | grep -qi turtles && raise \"contains forbidden word 'turtles'\" || true",
     "skipList": ["fishook.json", "fishook.sh"]
   },
-  "post-checkout": "echo 'Nice! You checked out ${FISHOOK_REF}'"
+  "post-checkout": "echo Nice! You checked out \"$(git branch --show-current)\" \"($(git rev-parse --short HEAD))\""
 }

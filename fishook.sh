@@ -508,14 +508,10 @@ raise(){\n\
 }\n\
 '
 
-  # Only pass args if non-empty (avoid quoting issues)
-  local args_quoted=""
-  if [[ "${#hook_args[@]}" -gt 0 && -n "${hook_args[0]}" ]]; then
-    args_quoted="$(printf '%q ' "${hook_args[@]}" | sed 's/ $//')"
-  fi
-
-  if [[ -n "$args_quoted" ]]; then
-    bash -c "${setup_cmds}${scope}${cmd} ${args_quoted}"
+  # Pass hook args as bash positional parameters ($1, $2, $3, etc.)
+  # so users can access them if needed, but they won't be auto-appended to commands
+  if [[ "${#hook_args[@]}" -gt 0 ]]; then
+    bash -c "${setup_cmds}${scope}${cmd}" -- "${hook_args[@]}"
   else
     bash -c "${setup_cmds}${scope}${cmd}"
   fi
@@ -958,6 +954,17 @@ do_run_hook() {
   # Back-compat env
   export GIT_HOOK_KEY="$hook"
   export GIT_HOOK_ARGS="$FISHOOK_ARGS"
+
+  # Hook-specific env vars
+  case "$hook" in
+    post-checkout)
+      [[ "${#hook_args[@]}" -ge 2 ]] && export FISHOOK_REF="${hook_args[1]}" || true
+      ;;
+    pre-push)
+      [[ "${#hook_args[@]}" -ge 1 ]] && export FISHOOK_REMOTE_NAME="${hook_args[0]}" || true
+      [[ "${#hook_args[@]}" -ge 2 ]] && export FISHOOK_REMOTE_URL="${hook_args[1]}" || true
+      ;;
+  esac
 
   # Step 1: run "run" commands (legacy/simple + block .run concatenation)
   local run_json cmd
