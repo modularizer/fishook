@@ -104,5 +104,6 @@ source "$FISHOOK_COMMON/forbid-pattern.sh"
 source "$FISHOOK_COMMON/forbid-file-pattern.sh"
 source "$FISHOOK_COMMON/ensure-executable.sh"
 source "$FISHOOK_COMMON/modify-commit-message.sh"
+source "$FISHOOK_COMMON/iter-source.sh"
 
-export -f fishook_old_path fishook_new_path old new diff modify raise pcsed forbid_pattern forbid_file_pattern ensure_executable modify_commit_message
+export -f fishook_old_path fishook_new_path old new diff modify raise pcsed forbid_pattern forbid_file_pattern ensure_executable modify_commit_message iter_source

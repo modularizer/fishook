@@ -216,9 +216,12 @@ type Spec = {
 
 Fishook includes reusable scripts in `$FISHOOK_COMMON/`:
 
-- **`forbid-pattern.sh <pattern> <message>`** - Fail if pattern found in file content
-- **`forbid-file-pattern.sh <pattern> <message>`** - Fail if file path matches pattern
-- **`ensure-executable.sh`** - Make the current file executable (use with `applyTo` filter)
+- **`forbid-pattern <pattern> <message>`** - Fail if pattern found in file content
+- **`forbid-file-pattern <pattern> <message>`** - Fail if file path matches pattern
+- **`ensure-executable`** - Make the current file executable (use with `applyTo` filter)
+- **`modify_commit_message`**
+- **`iter_source <folder>`** - Iterate all the bash files in a folder and source them (e.g. `iter_source scripts`)
+- **`pcsed <pattern> <replacement> [--index-only] [--local-only]`** - Apply sed commands to file content, replacing either in both worktree and staged (default), staged only (--index-only), or local only (--local-only).
 
 Examples:
 ```json
