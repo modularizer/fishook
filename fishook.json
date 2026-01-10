@@ -1,7 +1,7 @@
 {
   "_about": "run `fishook list` to see all options",
   "pre-commit": [{
-      "onFileEvent": "$FISHOOK_COMMON/forbid-pattern.sh 'dolphins' 'we dont talk about dolphins'",
+      "onFileEvent": "$FISHOOK_COMMON/forbid-pattern.sh 'turtles' 'we dont talk about turtles'",
       "skipList": ["*fishook*"]
     }, {
       "onFileEvent": "$FISHOOK_COMMON/ensure-executable.sh",
@@ -10,8 +10,8 @@
       "onFileEvent": "$FISHOOK_REPO_ROOT/scripts/sync-version.sh",
       "applyTo": ["package.json"]
     }, {
-      "onFileEvent": "$FISHOOK_COMMON/sedder.sh 's/dolphins/dolphins/g' --index-only",
-      "applyTo": ["fishook.json"]
+      "onFileEvent": "$FISHOOK_COMMON/sedder.sh 's/turtles/dolphins/g' --index-only",
+      "applyTo": ["README.md"]
     }, {}
   ],
   "post-checkout": "echo Nice! You checked out \"$(git branch --show-current)\" \"($(git rev-parse --short HEAD))\""
