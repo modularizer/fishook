@@ -1,34 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# usage:
-#   sed-modify.sh [modify-flags...] <sed-expr>
-#
-# examples:
-#   sed-modify.sh 's/foo/bar/g'
-#   sed-modify.sh --index-only 's/[ \t]*$//'
-
 modify_flags=()
+sed_expr=""
 
-while [[ $# -gt 1 ]]; do
-  case "$1" in
+for arg in "$@"; do
+  case "$arg" in
     --index-only|--staged-only|--worktree-only|--local-only|--no-stage)
-      modify_flags+=("$1")
-      shift
+      modify_flags+=("$arg")
+      ;;
+    -*)
+      echo "sed-modify.sh: unknown flag: $arg" >&2
+      exit 2
       ;;
     *)
-      break
+      sed_expr="$arg"
       ;;
   esac
 done
 
-[[ $# -eq 1 ]] || { echo "usage: sed-modify.sh [modify-flags...] <sed-expr>" >&2; exit 2; }
+[[ -n "$sed_expr" ]] || {
+  echo "usage: sed-modify.sh [modify-flags...] <sed-expr>" >&2
+  exit 2
+}
 
-sed_expr="$1"
+original="$(new)"
+result="$(printf '%s' "$original" | sed -E "$sed_expr")"
 
-# Get current content, apply sed, and write back
-result="$(
-  new | sed -E "$sed_expr"
-)"
-
-modify "${modify_flags[@]}" "$result"
+if [[ "$result" != "$original" ]]; then
+  echo "fishook: sed-modify applied: $sed_expr" >&2
+  modify "${modify_flags[@]}" "$result"
+fi
