@@ -2,7 +2,7 @@
 
 Tiny git hook runner driven by `fishook.json`
 
-## Install
+## Install (coming soon)
 
 ### With node
 ```bash
