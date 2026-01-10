@@ -2,17 +2,30 @@
 set -euo pipefail
 
 ensure_executable() {
-  [[ -n "${FISHOOK_PATH:-}" ]] || {
-    echo "ensure_executable: FISHOOK_PATH not set" >&2
-    return 1
-  }
 
-  local file="$FISHOOK_PATH"
+  
+  local p="${1:-}"
+  
+    if [[ -z "$p" ]]; then
+      if [[ -n "${FISHOOK_DST:-}" ]]; then
+        p="$FISHOOK_DST"
+      elif [[ -n "${FISHOOK_PATH:-}" ]]; then
+        p="$FISHOOK_PATH"
+      elif [[ -n "${FISHOOK_SRC:-}" ]]; then
+        p="$FISHOOK_SRC"
+      fi
+    fi
 
-  if [[ -f "$file" && ! -x "$file" ]]; then
-    chmod +x "$file"
-    git add "$file"
-    echo "✓ Made executable: $file"
+    [[ -n "${p:-}" ]] || {
+        echo "ensure_executable: FISHOOK_PATH not set" >&2
+        return 1
+      }
+
+
+  if [[ -f "$p" && ! -x "$p" ]]; then
+    chmod +x "$p"
+    git add "$p"
+    echo "✓ Made executable: $p"
   fi
 }
 

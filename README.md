@@ -227,13 +227,13 @@ Examples:
     {
       "applyTo": ["*.js"],
       "onChange": [
-        "$FISHOOK_COMMON/forbid-pattern.sh 'console\\.log' 'Remove console.log'"
+        "forbid_pattern 'console\\.log' 'Remove console.log'"
       ]
     },
     {
       "onFileEvent": [
-        "$FISHOOK_COMMON/forbid-file-pattern.sh '\\.env$' 'Do not commit .env files'",
-        "$FISHOOK_COMMON/forbid-file-pattern.sh 'secret|credential' 'File name contains secret/credential'"
+        "forbid_file_pattern '\\.env$' 'Do not commit .env files'",
+        "forbid_file_pattern 'secret|credential' 'File name contains secret/credential'"
       ]
     },
     {
@@ -253,6 +253,16 @@ Available in all commands (including `setup` and `source`):
 - `new()` - get new file content
 - `diff()` - show diff
 - `raise "msg"` - fail hook with message
+
+### Common Utilities
+
+Fishook includes reusable scripts in `$FISHOOK_COMMON/`:
+
+- **`forbid_pattern <pattern> <message>`** - Fail if pattern found in file content
+- **`forbid_file_pattern <pattern> <message>`** - Fail if file path matches pattern
+- **`ensure_executable`** - Make the current file executable (use with `applyTo` filter)
+- **`sedder`** - Apply sed commands to file content, replacing either in both worktree and staged (default), staged only (--index-only), or local only (--local-only).
+
 
 ### Environment Variables
 - `FISHOOK_COMMON` - path to fishook's common/ scripts directory (use for shared utilities)

@@ -99,9 +99,10 @@ raise() {
   exit 1
 }
 
-source "$FISHOOK_COMMON/sedder.sh"
+source "$FISHOOK_COMMON/pcsed.sh"
 source "$FISHOOK_COMMON/forbid-pattern.sh"
 source "$FISHOOK_COMMON/forbid-file-pattern.sh"
 source "$FISHOOK_COMMON/ensure-executable.sh"
+source "$FISHOOK_COMMON/modify-commit-message.sh"
 
-export -f fishook_old_path fishook_new_path old new diff modify raise sedder forbid_pattern forbid_file_pattern ensure_executable
+export -f fishook_old_path fishook_new_path old new diff modify raise pcsed forbid_pattern forbid_file_pattern ensure_executable modify_commit_message

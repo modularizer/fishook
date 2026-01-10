@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-sedder() {
+pcsed() {
   local modify_flags=()
   local sed_expr=""
 
@@ -11,7 +11,7 @@ sedder() {
         modify_flags+=("$arg")
         ;;
       -*)
-        echo "sedder: unknown flag: $arg" >&2
+        echo "pcsed: unknown flag: $arg" >&2
         return 2
         ;;
       *)
@@ -21,7 +21,7 @@ sedder() {
   done
 
   [[ -n "$sed_expr" ]] || {
-    echo "usage: sedder [modify-flags...] <sed-expr>" >&2
+    echo "usage: pcsed [modify-flags...] <sed-expr>" >&2
     return 2
   }
 
@@ -35,7 +35,7 @@ sedder() {
   fi
 }
 
-# If executed (not sourced), run sedder with CLI args.
+# If executed (not sourced), run pcsed with CLI args.
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  sedder "$@"
+  pcsed "$@"
 fi

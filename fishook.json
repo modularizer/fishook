@@ -10,9 +10,10 @@
       "onFileEvent": "$FISHOOK_REPO_ROOT/scripts/sync-version.sh",
       "applyTo": ["package.json"]
     }, {
-      "onFileEvent": "sedder 's/apples/oranges/g' --index-only",
+      "onFileEvent": "pcsed 's/apples/oranges/g' --index-only",
       "applyTo": ["README.md"]
     }, {}
   ],
+  "commit-msg": "modify_commit_message $1 s/failed/worked/",
   "post-checkout": "echo Nice! You checked out \"$(git branch --show-current)\" \"($(git rev-parse --short HEAD))\""
 }
