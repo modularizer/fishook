@@ -212,12 +212,8 @@ write_sample_config() {
 {
   "_about": "run `fishook list` to see all options",
   "pre-commit": {
-    "skipList": "fishook.json",
-    "run": ["echo pre-commit (once): repo=$FISHOOK_REPO_NAME root=$FISHOOK_REPO_ROOT"],
-    "onFileEvent": [
-      "echo file $FISHOOK_EVENT $FISHOOK_PATH",
-      "new | grep -qi turtles && raise \"contains forbidden word 'turtles'\""
-    ]
+      "onFileEvent": "new | grep -qi turtles && raise \"contains forbidden word 'turtles'\"",
+      "skipList": ["fishook.json", "fishook.sh"]
   }
 }
 EOF
@@ -253,10 +249,9 @@ hook_entry_json() {
 # Does hook entry have "blocks" (object or array-of-objects)?
 hook_entry_has_blocks() {
   local hook="$1"
-  jq -e --arg h "$hook" '
-    (.[$h] // null) as $e
-    | ($e != null) and ( ($e|type) == "object" or ($e|type) == "array")
-  ' "$CONFIG_PATH" >/dev/null 2>&1
+  local entry_type
+  entry_type=$(jq -r --arg h "$hook" 'if .[$h] then (.[$h] | type) else "null" end' "$CONFIG_PATH")
+  [[ "$entry_type" == "object" || "$entry_type" == "array" ]]
 }
 
 # Return a JSON array of "blocks" for a hook:
@@ -292,9 +287,14 @@ hook_run_cmds_json() {
 
     (.[$h] // null) as $e
     | if $e == null then []
-      elif ($e|type) == "string" or ($e|type) == "array" then normalize($e)
-      elif ($e|type) == "object" then normalize($e.run // $e.commands)
-      elif ($e|type) == "array" then ( $e | map(normalize(.run // .commands)) | add )
+      elif ($e|type) == "string" then $e | normalize
+      elif ($e|type) == "object" then ($e.run // $e.commands) | normalize
+      elif ($e|type) == "array" then
+        if ($e | length) > 0 and ($e[0] | type) == "object" then
+          ( $e | map((.run // .commands) | normalize) | add ) // []
+        else
+          $e | normalize
+        end
       else []
       end
   ' "$CONFIG_PATH"
@@ -341,6 +341,18 @@ block_skip_list_json() {
       end;
     (.skipList // null) | norm
   '
+}
+
+# Extract top-level "setup" and "source" commands (run before every command).
+config_setup_cmds() {
+  local setup source_cmd result
+  setup=$(jq -r 'if .setup == null then "" elif (.setup | type) == "string" then .setup elif (.setup | type) == "array" then (.setup | join("; ")) else "" end' "$CONFIG_PATH")
+  source_cmd=$(jq -r 'if .source == null then "" elif (.source | type) == "string" then "source " + .source elif (.source | type) == "array" then (.source | map("source " + .) | join("; ")) else "" end' "$CONFIG_PATH")
+
+  result=""
+  [[ -n "$setup" ]] && result="$setup"
+  [[ -n "$source_cmd" ]] && result="${result:+$result; }$source_cmd"
+  printf '%s' "$result"
 }
 
 # ---- hook explanations (short, useful defaults) ----
@@ -457,6 +469,11 @@ run_one_cmd() {
 
   [[ "$DRY_RUN" -eq 1 ]] && return 0
 
+  # Setup/source commands (run before everything)
+  local setup_cmds
+  setup_cmds="$(config_setup_cmds)"
+  [[ -n "$setup_cmds" ]] && setup_cmds="${setup_cmds}; "
+
   # Helper funcs injected into the bash -lc scope (no temp files).
   local scope
   scope=$'\
@@ -490,12 +507,16 @@ raise(){\n\
 }\n\
 '
 
-  if [[ "${#hook_args[@]}" -gt 0 ]]; then
-    local args_quoted
+  # Only pass args if non-empty (avoid quoting issues)
+  local args_quoted=""
+  if [[ "${#hook_args[@]}" -gt 0 && -n "${hook_args[0]}" ]]; then
     args_quoted="$(printf '%q ' "${hook_args[@]}" | sed 's/ $//')"
-    bash -lc "${scope}${cmd} ${args_quoted}"
+  fi
+
+  if [[ -n "$args_quoted" ]]; then
+    bash -c "${setup_cmds}${scope}${cmd} ${args_quoted}"
   else
-    bash -lc "${scope}${cmd}"
+    bash -c "${setup_cmds}${scope}${cmd}"
   fi
 }
 
@@ -558,7 +579,7 @@ dispatch_event_handlers() {
         run_one_cmd "$hook" "$cmd" "${hook_args[@]}"
       done < <(printf '%s' "$cmds_json" | jq -r '.[]')
     done
-  done < <(printf '%s' "$blocks_json" | jq -r '.[] | @json' | jq -r '.') # stable line-per-block
+  done < <(printf '%s' "$blocks_json" | jq -c '.[]') # stable line-per-block
 }
 
 # ---- event emitters ----
@@ -831,7 +852,7 @@ do_explain() {
         printf '%s\n' "$kjson" | jq -r '.[]' | sed 's/^/        - /'
       done
       [[ $any -eq 0 ]] && echo "      (no handlers)"
-    done < <(printf '%s' "$blocks_json" | jq -r '.[] | @json' | jq -r '.')
+    done < <(printf '%s' "$blocks_json" | jq -c '.[]')
   fi
 }
 

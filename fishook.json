@@ -1,16 +1,8 @@
 {
   "_about": "run `fishook list` to see all options",
   "pre-commit": {
-      "onAdd": ["echo added $FISHOOK_PATH"],
-      "onChange": ["echo changed $FISHOOK_PATH"],
-      "onDelete": ["echo deleted $FISHOOK_PATH"],
-      "onMove": ["echo moved $FISHOOK_SRC -> $FISHOOK_DST"],
-      "onCopy": ["echo copied $FISHOOK_SRC -> $FISHOOK_DST"],
-      "onFileEvent": [
-        "echo $FISHOOK_PATH changed with $FISHOOK_EVENT_KIND event of type $FISHOOK_EVENT",
-        "new | grep -qi turtles && raise \"contains forbidden word 'turtles'\"\n"
-      ],
-      "run": ["echo always runs once per hook too"],
-      "skipList": "fishook.json"
-  }
+      "onFileEvent": "new | grep -qi turtles && raise \"contains forbidden word 'turtles'\"",
+      "skipList": ["fishook.json", "fishook.sh"]
+  },
+  "post-checkout": "echo 'Nice! You checked out ${FISHOOK_REF}'"
 }
