@@ -521,6 +521,7 @@ raise(){\n\
   echo "❌ ${FISHOOK_HOOK:-hook} failed on ${FISHOOK_PATH:-${FISHOOK_DST:-${FISHOOK_SRC:-?}}}: $1" >&2\n\
   exit 1\n\
 }\n\
+export -f fishook_old_path fishook_new_path old new diff raise\n\
 '
 
   # Pass hook args as bash positional parameters ($1, $2, $3, etc.)
