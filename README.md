@@ -68,7 +68,7 @@ For the most part, you don't even need to use the CLI, just edit the `fishook.js
     {
       "skipList": ["*.md", "docs/**"],
       "onFileEvent": [
-        "new | grep -qiE '(password|secret|api[_-]?key)\\s*=\\s*[\"'\\'''][^\"'\\''']' && raise 'Potential secret detected'"
+        "new | grep -qiE '(password|secret|api[_-]?key)\\s*=\\s*[\"'\\'''][^\"'\\''']' && raise 'Potential secret detected' || true"
       ]
     }
   ],
@@ -87,7 +87,7 @@ For the most part, you don't even need to use the CLI, just edit the `fishook.js
 ## Available Hooks supported by git
 
 #### Client-side (commit workflow)
-* `pre-commit`         **Probably the most useful one** Runs before a commit is created; commonly lint/tests/format checks; can reject.
+* `pre-commit`         **Probably the most useful hook -** Runs before a commit is created; commonly lint/tests/format checks; can reject.
 * `pre-merge-commit`   Runs before creating a merge commit (when merge is clean); can reject.
 * `prepare-commit-msg` Runs before commit message editor opens; can prefill/edit message.
 * `commit-msg`         Runs after message is written; validate commit message; can reject.
