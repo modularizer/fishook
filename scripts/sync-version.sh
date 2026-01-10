@@ -5,6 +5,8 @@ set -euo pipefail
 OLD_VER=$(old | jq -r .version 2>/dev/null || echo "")
 NEW_VER=$(new | jq -r .version 2>/dev/null || echo "")
 echo "checking $OLD_VER vs $NEW_VER"
+echo "old: $(old)"
+echo "new: $(new)"
 
 # Exit if version unchanged
 [[ "$OLD_VER" == "$NEW_VER" ]] && exit 0
