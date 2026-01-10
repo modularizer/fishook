@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage: ensure-executable.sh
-# Ensures the current file ($FISHOOK_PATH) is executable
-# Typically used with applyTo filter like: "applyTo": ["*.sh"]
+ensure_executable() {
+  [[ -n "${FISHOOK_PATH:-}" ]] || {
+    echo "ensure_executable: FISHOOK_PATH not set" >&2
+    return 1
+  }
 
-[[ -z "${FISHOOK_PATH:-}" ]] && echo "Error: FISHOOK_PATH not set" >&2 && exit 1
+  local file="$FISHOOK_PATH"
 
-FILE="$FISHOOK_PATH"
+  if [[ -f "$file" && ! -x "$file" ]]; then
+    chmod +x "$file"
+    git add "$file"
+    echo "✓ Made executable: $file"
+  fi
+}
 
-# Check if file exists and is not already executable
-if [[ -f "$FILE" && ! -x "$FILE" ]]; then
-  chmod +x "$FILE"
-  git add "$FILE"
-  echo "✓ Made executable: $FILE"
+# If executed directly, run it.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  ensure_executable "$@"
 fi

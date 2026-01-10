@@ -99,4 +99,9 @@ raise() {
   exit 1
 }
 
-export -f fishook_old_path fishook_new_path old new diff modify raise
+source "$FISHOOK_COMMON/sedder.sh"
+source "$FISHOOK_COMMON/forbid-pattern.sh"
+source "$FISHOOK_COMMON/forbid-file-pattern.sh"
+source "$FISHOOK_COMMON/ensure-executable.sh"
+
+export -f fishook_old_path fishook_new_path old new diff modify raise sedder forbid_pattern forbid_file_pattern ensure_executable

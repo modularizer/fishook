@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage: forbid-file-pattern.sh <pattern> <error-message>
-# Checks if the file path matches pattern and raises error if it does
-# Useful for preventing certain file names from being committed
+forbid_file_pattern() {
+  local pattern="${1:-}"
+  local message="${2:-file name matches forbidden pattern}"
 
-PATTERN="${1:-}"
-MESSAGE="${2:-file name matches forbidden pattern}"
+  [[ -n "$pattern" ]] || {
+    echo "usage: forbid_file_pattern <pattern> <message>" >&2
+    return 1
+  }
 
-[[ -z "$PATTERN" ]] && echo "Usage: forbid-file-pattern.sh <pattern> <message>" >&2 && exit 1
+  if [[ "${FISHOOK_PATH:-}" =~ $pattern ]]; then
+    raise "$message"
+  fi
+}
 
-if [[ "${FISHOOK_PATH:-}" =~ $PATTERN ]]; then
-  raise "$MESSAGE"
+# If executed directly, run it.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  forbid_file_pattern "$@"
 fi

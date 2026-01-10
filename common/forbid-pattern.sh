@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage: forbid-pattern.sh <pattern> <error-message>
-# Searches new() content for pattern and raises error if found
+forbid_pattern() {
+  local pattern="${1:-}"
+  local message="${2:-contains forbidden pattern}"
 
-PATTERN="${1:-}"
-MESSAGE="${2:-contains forbidden pattern}"
+  [[ -n "$pattern" ]] || {
+    echo "usage: forbid_pattern <pattern> <message>" >&2
+    return 1
+  }
 
-[[ -z "$PATTERN" ]] && echo "Usage: forbid-pattern.sh <pattern> <message>" >&2 && exit 1
+  if new | grep -qE "$pattern"; then
+    raise "$message"
+  fi
+}
 
-
-if new | grep -qE "$PATTERN"; then
-  raise "$MESSAGE"
+# If executed directly, run it.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  forbid_pattern "$@"
 fi
-
