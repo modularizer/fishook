@@ -1,0 +1,5 @@
+{
+  "pre-commit": {
+    "onFileEvent": "echo could call geet include of $FISHOOOK_PATH"
+  }
+}

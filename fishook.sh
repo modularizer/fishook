@@ -53,6 +53,118 @@ ALL_HOOKS=(
   sendemail-validate fsmonitor-watchman
 )
 
+# ---- scope documentation (environment variables and functions) ----
+# This section documents all variables and functions available in hook commands.
+
+# ENVIRONMENT VARIABLES:
+
+# FISHOOK_HOOK: The current hook name (e.g., "pre-commit", "pre-push")
+# FISHOOK_REPO_ROOT: Absolute path to the repository root directory
+# FISHOOK_REPO_NAME: Name of the repository (basename of repo root)
+# FISHOOK_GIT_DIR: Absolute path to the .git directory
+# FISHOOK_CONFIG_PATH: Path to the fishook.json config file being used
+# FISHOOK_CONFIG_DIR: Directory containing the config file (for scoped configs)
+# FISHOOK_HOOKS_PATH: Path to the .git/hooks directory
+# FISHOOK_COMMON: Path to fishook's common/ directory with helper scripts
+# FISHOOK_DRY_RUN: "1" if --dry-run was specified, "0" otherwise
+# FISHOOK_CWD: Working directory when fishook was invoked
+# FISHOOK_ARGV0: The $0 argument (hook script path)
+# FISHOOK_ARGS: Space-separated, shell-quoted hook arguments
+
+# Event-specific variables (set during file/ref events):
+
+# FISHOOK_EVENT_KIND: "file" or "ref" (indicates the type of event)
+# FISHOOK_EVENT: Specific event type:
+#   File events: "add", "change", "delete", "move", "copy"
+#   Ref events: "ref_create", "ref_update", "ref_delete"
+# FISHOOK_STATUS: Git status letter (A=add, M=modify, D=delete, Rxxx=rename, Cxxx=copy)
+
+# File event variables:
+
+# FISHOOK_PATH: Relative path to the file (for add/change/delete events)
+# FISHOOK_ABS_PATH: Absolute path to the file
+# FISHOOK_SRC: Source path (for move/copy events)
+# FISHOOK_DST: Destination path (for move/copy events)
+# FISHOOK_ABS_SRC: Absolute source path (for move/copy events)
+# FISHOOK_ABS_DST: Absolute destination path (for move/copy events)
+
+# Ref event variables:
+
+# FISHOOK_REF: The ref being updated (e.g., "refs/heads/main")
+# FISHOOK_OLD_OID: Old commit SHA (or 0000... for new refs)
+# FISHOOK_NEW_OID: New commit SHA (or 0000... for deleted refs)
+# FISHOOK_REMOTE_NAME: Remote name (pre-push hook only)
+# FISHOOK_REMOTE_URL: Remote URL (pre-push hook only)
+
+# Legacy variables (backwards compatibility):
+
+# GIT_HOOK_KEY: Same as FISHOOK_HOOK (deprecated, use FISHOOK_HOOK)
+# GIT_HOOK_ARGS: Same as FISHOOK_ARGS (deprecated, use FISHOOK_ARGS)
+
+# FUNCTIONS:
+
+# old(): Print the old version of the current file (from HEAD or FISHOOK_OLD_OID)
+#   Usage: old
+#   Example: old | grep pattern
+
+# new(): Print the new version of the current file (from index/worktree or FISHOOK_NEW_OID)
+#   Usage: new
+#   Example: new | grep pattern
+
+# diff(): Show the git diff for the current file
+#   Usage: diff
+#   Example: diff | grep -q "TODO"
+
+# modify([flags] [text]): Modify the current file in index and/or worktree
+#   Usage: modify [--index-only|--worktree-only|--no-stage] [text]
+#   Flags:
+#     --index-only/--staged-only: Only update the staged version
+#     --worktree-only/--local-only: Update worktree and stage it
+#     --no-stage: Update worktree but don't stage the change
+#   Input: Reads from stdin if no text argument provided
+#   Example: new | sed 's/foo/bar/' | modify
+#   Example: modify "new content here"
+
+# raise(message): Fail the hook with an error message
+#   Usage: raise "error message"
+#   Example: raise "commit message too short"
+
+# pcsed([modify-flags] sed-expr): Apply sed transformation to current file
+#   Usage: pcsed [modify-flags] <sed-expression>
+#   Example: pcsed 's/TODO/DONE/g'
+#   Example: pcsed --index-only 's/version = .*/version = 2.0/'
+
+# forbid_pattern(pattern [message]): Fail if file content matches regex pattern
+#   Usage: forbid_pattern <pattern> [message]
+#   Example: forbid_pattern 'console\.log' "console.log not allowed"
+#   Example: forbid_pattern '\bTODO\b'
+
+# forbid_file_pattern(pattern [message]): Fail if filename matches regex pattern
+#   Usage: forbid_file_pattern <pattern> [message]
+#   Example: forbid_file_pattern '\.orig$' "merge conflict files not allowed"
+#   Example: forbid_file_pattern '^\.env' ".env files should not be committed"
+
+# ensure_executable([path]): Make file executable if it isn't already
+#   Usage: ensure_executable [path]
+#   Example: ensure_executable
+#   Example: ensure_executable scripts/deploy.sh
+
+# modify_commit_message(file sed-expr): Modify a commit message file with sed
+#   Usage: modify_commit_message <file> <sed-expression>
+#   Example: modify_commit_message "$1" 's/^/[PREFIX] /'
+
+# iter_source(directory): Source all .sh files in a directory
+#   Usage: iter_source <directory>
+#   Example: iter_source "$FISHOOK_COMMON/plugins"
+
+# fishook_old_path(): Print the "old" path (FISHOOK_SRC or FISHOOK_PATH)
+#   Usage: fishook_old_path
+#   Example: path=$(fishook_old_path)
+
+# fishook_new_path(): Print the "new" path (FISHOOK_DST or FISHOOK_PATH)
+#   Usage: fishook_new_path
+#   Example: path=$(fishook_new_path)
+
 # ---- globals set by flag parsing ----
 CONFIG_PATH=""
 HOOKS_PATH=""
@@ -399,6 +511,128 @@ hook_explain_text() {
   esac
 }
 
+# ---- hook-specific scope details ----
+hook_scope_details() {
+  local h="$1"
+  echo "Positional arguments:"
+  case "$h" in
+    applypatch-msg|commit-msg)
+      echo "  \$1  Path to commit message file"
+      ;;
+    prepare-commit-msg)
+      echo "  \$1  Path to commit message file"
+      echo "  \$2  Commit message source (message/template/merge/squash/commit)"
+      echo "  \$3  Commit SHA (for 'commit' source only)"
+      ;;
+    post-checkout)
+      echo "  \$1  Old HEAD ref (SHA)"
+      echo "  \$2  New HEAD ref (SHA)"
+      echo "  \$3  Branch checkout flag (1=branch, 0=file)"
+      ;;
+    post-merge)
+      echo "  \$1  Squash merge flag (1=squash, 0=regular)"
+      ;;
+    pre-push)
+      echo "  \$1  Remote name"
+      echo "  \$2  Remote URL"
+      echo "  stdin: Lines of '<local-ref> <local-sha> <remote-ref> <remote-sha>'"
+      ;;
+    pre-receive|post-receive)
+      echo "  stdin: Lines of '<old-sha> <new-sha> <ref>'"
+      ;;
+    update)
+      echo "  \$1  Ref name"
+      echo "  \$2  Old SHA"
+      echo "  \$3  New SHA"
+      ;;
+    post-update)
+      echo "  \$*  Updated ref names"
+      ;;
+    post-rewrite)
+      echo "  \$1  Rewrite command (amend/rebase)"
+      echo "  stdin: Lines of '<old-sha> <new-sha>'"
+      ;;
+    pre-rebase)
+      echo "  \$1  Upstream branch"
+      echo "  \$2  Branch being rebased (if not current)"
+      ;;
+    sendemail-validate)
+      echo "  \$1  Path to email file"
+      ;;
+    fsmonitor-watchman)
+      echo "  \$1  Version number"
+      echo "  \$2  Clock token"
+      ;;
+    pre-commit|pre-merge-commit|post-commit|pre-applypatch|post-applypatch|pre-auto-gc|push-to-checkout|proc-receive)
+      echo "  (no arguments)"
+      ;;
+    *)
+      echo "  (unknown hook)"
+      ;;
+  esac
+
+  echo
+  echo "Hook-specific environment variables:"
+  case "$h" in
+    pre-commit)
+      echo "  FISHOOK_EVENT_KIND=file (for onFileEvent handlers)"
+      echo "  FISHOOK_EVENT=add|change|delete|move|copy"
+      echo "  FISHOOK_STATUS=A|M|D|R*|C*"
+      echo "  FISHOOK_PATH, FISHOOK_ABS_PATH (for add/change/delete)"
+      echo "  FISHOOK_SRC, FISHOOK_DST (for move/copy)"
+      echo "  Available file events: onAdd, onChange, onDelete, onMove, onCopy, onFileEvent"
+      echo "  Available functions: old, new, diff, modify, pcsed, forbid_pattern, raise"
+      ;;
+    post-checkout|post-merge)
+      echo "  FISHOOK_EVENT_KIND=file (for onFileEvent handlers)"
+      echo "  FISHOOK_EVENT=add|change|delete|move|copy"
+      echo "  FISHOOK_PATH, FISHOOK_SRC, FISHOOK_DST (depending on event)"
+      echo "  FISHOOK_OLD_OID, FISHOOK_NEW_OID (commit SHAs)"
+      echo "  Available file events: onAdd, onChange, onDelete, onMove, onCopy, onFileEvent"
+      echo "  Available functions: old, new, diff"
+      ;;
+    pre-push)
+      echo "  FISHOOK_REMOTE_NAME (remote name, from \$1)"
+      echo "  FISHOOK_REMOTE_URL (remote URL, from \$2)"
+      echo "  FISHOOK_EVENT_KIND=ref (for onRefEvent handlers)"
+      echo "  FISHOOK_EVENT=ref_create|ref_update|ref_delete"
+      echo "  FISHOOK_REF (ref name)"
+      echo "  FISHOOK_OLD_OID, FISHOOK_NEW_OID (commit SHAs)"
+      echo "  Available ref events: onRefCreate, onRefUpdate, onRefDelete, onRefEvent"
+      ;;
+    pre-receive|post-receive)
+      echo "  FISHOOK_EVENT_KIND=ref (for onRefEvent handlers)"
+      echo "  FISHOOK_EVENT=ref_create|ref_update|ref_delete"
+      echo "  FISHOOK_REF (ref name)"
+      echo "  FISHOOK_OLD_OID, FISHOOK_NEW_OID (commit SHAs)"
+      echo "  Available ref events: onRefCreate, onRefUpdate, onRefDelete, onRefEvent"
+      ;;
+    update)
+      echo "  FISHOOK_EVENT_KIND=ref (for onRefEvent handlers)"
+      echo "  FISHOOK_EVENT=ref_create|ref_update|ref_delete"
+      echo "  FISHOOK_REF (ref name, from \$1)"
+      echo "  FISHOOK_OLD_OID (from \$2), FISHOOK_NEW_OID (from \$3)"
+      echo "  Available ref events: onRefCreate, onRefUpdate, onRefDelete, onRefEvent"
+      ;;
+    commit-msg|prepare-commit-msg)
+      echo "  \$1 available as positional arg (commit message file)"
+      echo "  Available functions: modify_commit_message, raise"
+      ;;
+    *)
+      echo "  (no hook-specific variables; only base FISHOOK_* vars available)"
+      ;;
+  esac
+
+  echo
+  echo "Base variables (always available):"
+  echo "  FISHOOK_HOOK, FISHOOK_REPO_ROOT, FISHOOK_REPO_NAME, FISHOOK_GIT_DIR"
+  echo "  FISHOOK_CONFIG_PATH, FISHOOK_HOOKS_PATH, FISHOOK_COMMON"
+  echo "  FISHOOK_CWD, FISHOOK_ARGV0, FISHOOK_ARGS, FISHOOK_DRY_RUN"
+
+  echo
+  echo "Run 'fishook scope' for full documentation of all functions and variables."
+}
+
 # ---- env vars ----
 export_base_env() {
   local hook="$1"
@@ -481,7 +715,9 @@ fishook_block_allows_path() {
 run_one_cmd() {
   local hook="$1"
   local cmd="$2"
+  local context="${3:-}"
   shift 2 || true
+  [[ -n "$context" ]] && shift || true
   local -a hook_args=("$@")
 
   [[ "${FISHOOK_DRY_RUN:-0}" -eq 1 ]] && return 0
@@ -495,13 +731,38 @@ run_one_cmd() {
   # after setup_cmds
   local scope_file="${FISHOOK_COMMON}/scope.sh"
 
+  # Capture stderr and exit code to provide better error messages
+  local stderr_file exit_code=0
+  stderr_file="$(mktemp)"
+  trap "rm -f '$stderr_file'" RETURN
+
   # Pass hook args as bash positional parameters ($1, $2, $3, etc.)
   # so users can access them if needed, but they won't be auto-appended to commands
   if [[ "${#hook_args[@]}" -gt 0 ]]; then
-    bash -lc "${setup_cmds}source \"${scope_file}\"; ${cmd}" -- "${hook_args[@]}"
+    bash -lc "${setup_cmds}source \"${scope_file}\"; ${cmd}" -- "${hook_args[@]}" 2>"$stderr_file" || exit_code=$?
   else
-    bash -lc "${setup_cmds}source \"${scope_file}\"; ${cmd}"
+    bash -lc "${setup_cmds}source \"${scope_file}\"; ${cmd}" 2>"$stderr_file" || exit_code=$?
   fi
+
+  # If command failed, provide detailed error message
+  if [[ $exit_code -ne 0 ]]; then
+    local stderr_content
+    stderr_content="$(cat "$stderr_file")"
+
+    echo "fishook ${hook} failed with exit code ${exit_code}" >&2
+    if [[ -n "$context" ]]; then
+      echo "  on \"${context}\"" >&2
+    fi
+    echo "  of \"${cmd}\"" >&2
+    if [[ -n "$stderr_content" ]]; then
+      echo "  with error:" >&2
+      echo "$stderr_content" | sed 's/^/    /' >&2
+    fi
+    exit "$exit_code"
+  fi
+
+  # If successful, still show stderr (warnings, etc.) but don't exit
+  cat "$stderr_file" >&2
 }
 
 # ---- event dispatch (block-aware) ----
@@ -571,7 +832,7 @@ dispatch_event_handlers() {
       cmds_json="$(block_key_cmds_json "$block" "$key")"
       [[ "$cmds_json" == "[]" ]] && continue
       while IFS= read -r cmd; do
-        run_one_cmd "$hook" "$cmd" "${hook_args[@]}"
+        run_one_cmd "$hook" "$cmd" "$key" "${hook_args[@]}"
       done < <(printf '%s' "$cmds_json" | jq -r '.[]')
     done
   done < <(printf '%s' "$blocks_json" | jq -c '.[]') # stable line-per-block
@@ -783,72 +1044,1064 @@ do_list() {
   done
 }
 
-do_explain() {
-  require_jq
-  in_git_repo || die "not inside a git repository"
+do_list_simple() {
+  local h
+  for h in applypatch-msg pre-applypatch post-applypatch sendemail-validate; do
+    printf "$h"
+  done
+  for h in pre-commit pre-merge-commit prepare-commit-msg commit-msg post-commit; do
+    printf "$h"
+  done
+  for h in pre-rebase post-checkout post-merge post-rewrite; do
+    printf "$h"
+  done
+  for h in pre-push pre-auto-gc; do
+    printf "$h"
+  done
+  for h in pre-receive update post-receive post-update push-to-checkout proc-receive; do
+    printf "$h"
+  done
+  for h in fsmonitor-watchman; do
+    printf "$h"
+  done
+}
 
+do_scope() {
+  cat <<'EOF'
+fishook scope - Available environment variables and functions
+
+ENVIRONMENT VARIABLES:
+
+Base variables (always available):
+  FISHOOK_HOOK             Current hook name (e.g., "pre-commit", "pre-push")
+  FISHOOK_REPO_ROOT        Absolute path to repository root
+  FISHOOK_REPO_NAME        Repository name (basename of root)
+  FISHOOK_GIT_DIR          Absolute path to .git directory
+  FISHOOK_CONFIG_PATH      Path to fishook.json being used
+  FISHOOK_CONFIG_DIR       Directory containing config (for scoped configs)
+  FISHOOK_HOOKS_PATH       Path to .git/hooks directory
+  FISHOOK_COMMON           Path to fishook's common/ helper scripts
+  FISHOOK_DRY_RUN          "1" if --dry-run, "0" otherwise
+  FISHOOK_CWD              Working directory when invoked
+  FISHOOK_ARGV0            The $0 argument (hook script path)
+  FISHOOK_ARGS             Space-separated, shell-quoted hook arguments
+
+Event-specific variables (set during file/ref events):
+  FISHOOK_EVENT_KIND       "file" or "ref"
+  FISHOOK_EVENT            Event type:
+                             file: add, change, delete, move, copy
+                             ref: ref_create, ref_update, ref_delete
+  FISHOOK_STATUS           Git status (A=add, M=modify, D=delete, R=rename, C=copy)
+
+File event variables:
+  FISHOOK_PATH             Relative file path (add/change/delete)
+  FISHOOK_ABS_PATH         Absolute file path
+  FISHOOK_SRC              Source path (move/copy)
+  FISHOOK_DST              Destination path (move/copy)
+  FISHOOK_ABS_SRC          Absolute source path
+  FISHOOK_ABS_DST          Absolute destination path
+
+Ref event variables:
+  FISHOOK_REF              Ref being updated (e.g., "refs/heads/main")
+  FISHOOK_OLD_OID          Old commit SHA (0000... for new refs)
+  FISHOOK_NEW_OID          New commit SHA (0000... for deleted refs)
+  FISHOOK_REMOTE_NAME      Remote name (pre-push only)
+  FISHOOK_REMOTE_URL       Remote URL (pre-push only)
+
+FUNCTIONS:
+
+File content helpers:
+  old                      Print old version of file (HEAD or FISHOOK_OLD_OID)
+                           Example: old | grep pattern
+
+  new                      Print new version of file (index/worktree or FISHOOK_NEW_OID)
+                           Example: new | grep pattern
+
+  diff                     Show git diff for current file
+                           Example: diff | grep -q "TODO"
+
+File modification:
+  modify [flags] [text]    Modify current file in index and/or worktree
+                           Flags:
+                             --index-only, --staged-only
+                             --worktree-only, --local-only
+                             --no-stage
+                           Example: new | sed 's/foo/bar/' | modify
+                           Example: modify "new content"
+
+  pcsed [flags] <expr>     Apply sed to current file (uses modify internally)
+                           Example: pcsed 's/TODO/DONE/g'
+                           Example: pcsed --index-only 's/v1/v2/'
+
+Validation:
+  raise <message>          Fail hook with error message
+                           Example: raise "commit message too short"
+
+  forbid_pattern           Fail if content matches regex
+    <pattern> [message]    Example: forbid_pattern 'console\.log' "no console.log"
+
+  forbid_file_pattern      Fail if filename matches regex
+    <pattern> [message]    Example: forbid_file_pattern '\.orig$' "no .orig files"
+
+Utilities:
+  ensure_executable        Make file executable (chmod +x and git add)
+    [path]                 Example: ensure_executable scripts/deploy.sh
+
+  modify_commit_message    Modify commit message with sed
+    <file> <sed-expr>      Example: modify_commit_message "$1" 's/^/[TAG] /'
+
+  iter_source <dir>        Source all .sh files in directory
+                           Example: iter_source "$FISHOOK_COMMON/plugins"
+
+  fishook_old_path         Print "old" path (FISHOOK_SRC or FISHOOK_PATH)
+  fishook_new_path         Print "new" path (FISHOOK_DST or FISHOOK_PATH)
+
+Run 'fishook explain <hook-name>' to see configured actions for a specific hook.
+EOF
+}
+
+# ---- explain helpers for variables, functions, and commands ----
+explain_variable() {
+  local var="$1"
+  case "$var" in
+    FISHOOK_HOOK)
+      cat <<'EOF'
+FISHOOK_HOOK
+
+The current hook name being executed (e.g., "pre-commit", "pre-push", "commit-msg").
+
+Type: string
+Always available: yes
+Example values: "pre-commit", "post-checkout", "pre-push"
+
+Usage:
+  echo "Running hook: $FISHOOK_HOOK"
+  if [[ "$FISHOOK_HOOK" == "pre-commit" ]]; then
+    echo "Pre-commit checks..."
+  fi
+EOF
+      ;;
+    FISHOOK_REPO_ROOT)
+      cat <<'EOF'
+FISHOOK_REPO_ROOT
+
+Absolute path to the repository root directory.
+
+Type: string (absolute path)
+Always available: yes
+Example: "/home/user/projects/my-repo"
+
+Usage:
+  cd "$FISHOOK_REPO_ROOT"
+  cat "$FISHOOK_REPO_ROOT/package.json"
+EOF
+      ;;
+    FISHOOK_REPO_NAME)
+      cat <<'EOF'
+FISHOOK_REPO_NAME
+
+Name of the repository (basename of the repository root directory).
+
+Type: string
+Always available: yes
+Example: "my-repo"
+
+Usage:
+  echo "Repository: $FISHOOK_REPO_NAME"
+EOF
+      ;;
+    FISHOOK_GIT_DIR)
+      cat <<'EOF'
+FISHOOK_GIT_DIR
+
+Absolute path to the .git directory.
+
+Type: string (absolute path)
+Always available: yes
+Example: "/home/user/projects/my-repo/.git"
+
+Usage:
+  cat "$FISHOOK_GIT_DIR/config"
+EOF
+      ;;
+    FISHOOK_CONFIG_PATH)
+      cat <<'EOF'
+FISHOOK_CONFIG_PATH
+
+Path to the fishook.json config file being used.
+
+Type: string (absolute path)
+Always available: yes
+Example: "/home/user/projects/my-repo/fishook.json"
+
+Usage:
+  echo "Using config: $FISHOOK_CONFIG_PATH"
+EOF
+      ;;
+    FISHOOK_CONFIG_DIR)
+      cat <<'EOF'
+FISHOOK_CONFIG_DIR
+
+Directory containing the fishook.json config file. Used for scoped configs
+to determine which files the config should apply to.
+
+Type: string (absolute path)
+Available: when using scoped/nested configs
+Example: "/home/user/projects/my-repo/subdir"
+
+Usage:
+  echo "Config scope: $FISHOOK_CONFIG_DIR"
+EOF
+      ;;
+    FISHOOK_HOOKS_PATH)
+      cat <<'EOF'
+FISHOOK_HOOKS_PATH
+
+Path to the .git/hooks directory.
+
+Type: string (absolute path)
+Always available: yes
+Example: "/home/user/projects/my-repo/.git/hooks"
+
+Usage:
+  ls "$FISHOOK_HOOKS_PATH"
+EOF
+      ;;
+    FISHOOK_COMMON)
+      cat <<'EOF'
+FISHOOK_COMMON
+
+Path to fishook's common/ directory containing helper scripts.
+
+Type: string (absolute path)
+Always available: yes
+Example: "/usr/local/lib/node_modules/fishook/common"
+
+Usage:
+  source "$FISHOOK_COMMON/custom-helpers.sh"
+  ls "$FISHOOK_COMMON"
+EOF
+      ;;
+    FISHOOK_DRY_RUN)
+      cat <<'EOF'
+FISHOOK_DRY_RUN
+
+Indicates whether --dry-run mode is active. "1" if dry-run, "0" otherwise.
+
+Type: string ("0" or "1")
+Always available: yes
+
+Usage:
+  if [[ "$FISHOOK_DRY_RUN" == "1" ]]; then
+    echo "Would execute command (dry run)"
+  else
+    execute_command
+  fi
+EOF
+      ;;
+    FISHOOK_CWD)
+      cat <<'EOF'
+FISHOOK_CWD
+
+Working directory when fishook was invoked.
+
+Type: string (absolute path)
+Always available: yes
+Example: "/home/user/projects/my-repo/subdirectory"
+
+Usage:
+  cd "$FISHOOK_CWD"
+EOF
+      ;;
+    FISHOOK_ARGV0)
+      cat <<'EOF'
+FISHOOK_ARGV0
+
+The $0 argument (path to the hook script being executed).
+
+Type: string
+Always available: yes
+Example: ".git/hooks/pre-commit"
+
+Usage:
+  echo "Hook script: $FISHOOK_ARGV0"
+EOF
+      ;;
+    FISHOOK_ARGS)
+      cat <<'EOF'
+FISHOOK_ARGS
+
+Space-separated, shell-quoted hook arguments passed to the hook.
+
+Type: string
+Always available: yes
+Example: "origin https://github.com/user/repo.git"
+
+Usage:
+  echo "Hook arguments: $FISHOOK_ARGS"
+EOF
+      ;;
+    FISHOOK_EVENT_KIND)
+      cat <<'EOF'
+FISHOOK_EVENT_KIND
+
+Type of event being processed: "file" or "ref".
+
+Type: string
+Available: during event handlers (onFileEvent, onRefEvent, etc.)
+Values: "file" | "ref"
+
+Usage:
+  if [[ "$FISHOOK_EVENT_KIND" == "file" ]]; then
+    echo "Processing file event"
+  fi
+EOF
+      ;;
+    FISHOOK_EVENT)
+      cat <<'EOF'
+FISHOOK_EVENT
+
+Specific event type being processed.
+
+Type: string
+Available: during event handlers
+File events: "add", "change", "delete", "move", "copy"
+Ref events: "ref_create", "ref_update", "ref_delete"
+
+Usage:
+  case "$FISHOOK_EVENT" in
+    add) echo "New file: $FISHOOK_PATH" ;;
+    change) echo "Modified: $FISHOOK_PATH" ;;
+    delete) echo "Deleted: $FISHOOK_PATH" ;;
+  esac
+EOF
+      ;;
+    FISHOOK_STATUS)
+      cat <<'EOF'
+FISHOOK_STATUS
+
+Git status letter indicating the type of change.
+
+Type: string
+Available: during file events
+Values: "A" (add), "M" (modify), "D" (delete), "R"* (rename), "C"* (copy)
+
+Usage:
+  echo "Status: $FISHOOK_STATUS"
+EOF
+      ;;
+    FISHOOK_PATH)
+      cat <<'EOF'
+FISHOOK_PATH
+
+Relative path to the file being processed (for add/change/delete events).
+
+Type: string (relative path)
+Available: during file events (add, change, delete)
+Example: "src/main.js"
+
+Usage:
+  echo "File: $FISHOOK_PATH"
+  if [[ "$FISHOOK_PATH" == *.js ]]; then
+    eslint "$FISHOOK_PATH"
+  fi
+EOF
+      ;;
+    FISHOOK_ABS_PATH)
+      cat <<'EOF'
+FISHOOK_ABS_PATH
+
+Absolute path to the file being processed.
+
+Type: string (absolute path)
+Available: during file events (add, change, delete)
+Example: "/home/user/projects/my-repo/src/main.js"
+
+Usage:
+  cat "$FISHOOK_ABS_PATH"
+EOF
+      ;;
+    FISHOOK_SRC)
+      cat <<'EOF'
+FISHOOK_SRC
+
+Source path for move/copy events (relative).
+
+Type: string (relative path)
+Available: during move/copy file events
+Example: "old-name.js"
+
+Usage:
+  echo "Moved from: $FISHOOK_SRC to $FISHOOK_DST"
+EOF
+      ;;
+    FISHOOK_DST)
+      cat <<'EOF'
+FISHOOK_DST
+
+Destination path for move/copy events (relative).
+
+Type: string (relative path)
+Available: during move/copy file events
+Example: "new-name.js"
+
+Usage:
+  echo "Moved to: $FISHOOK_DST"
+EOF
+      ;;
+    FISHOOK_ABS_SRC)
+      cat <<'EOF'
+FISHOOK_ABS_SRC
+
+Absolute source path for move/copy events.
+
+Type: string (absolute path)
+Available: during move/copy file events
+Example: "/home/user/projects/my-repo/old-name.js"
+EOF
+      ;;
+    FISHOOK_ABS_DST)
+      cat <<'EOF'
+FISHOOK_ABS_DST
+
+Absolute destination path for move/copy events.
+
+Type: string (absolute path)
+Available: during move/copy file events
+Example: "/home/user/projects/my-repo/new-name.js"
+EOF
+      ;;
+    FISHOOK_REF)
+      cat <<'EOF'
+FISHOOK_REF
+
+The ref being updated (e.g., branch or tag name).
+
+Type: string
+Available: during ref events (pre-push, pre-receive, update, etc.)
+Example: "refs/heads/main", "refs/tags/v1.0.0"
+
+Usage:
+  if [[ "$FISHOOK_REF" == refs/heads/main ]]; then
+    echo "Updating main branch"
+  fi
+EOF
+      ;;
+    FISHOOK_OLD_OID)
+      cat <<'EOF'
+FISHOOK_OLD_OID
+
+Old commit SHA before the change (or all zeros for new refs).
+
+Type: string (40-character hex SHA or zeros)
+Available: during ref events and some file events
+Example: "abc123...", "0000000000000000000000000000000000000000"
+
+Usage:
+  if [[ "$FISHOOK_OLD_OID" =~ ^0+$ ]]; then
+    echo "New ref"
+  fi
+EOF
+      ;;
+    FISHOOK_NEW_OID)
+      cat <<'EOF'
+FISHOOK_NEW_OID
+
+New commit SHA after the change (or all zeros for deleted refs).
+
+Type: string (40-character hex SHA or zeros)
+Available: during ref events and some file events
+Example: "def456...", "0000000000000000000000000000000000000000"
+
+Usage:
+  if [[ "$FISHOOK_NEW_OID" =~ ^0+$ ]]; then
+    echo "Deleted ref"
+  fi
+EOF
+      ;;
+    FISHOOK_REMOTE_NAME)
+      cat <<'EOF'
+FISHOOK_REMOTE_NAME
+
+Remote name for push operations.
+
+Type: string
+Available: pre-push hook only
+Example: "origin"
+
+Usage:
+  echo "Pushing to remote: $FISHOOK_REMOTE_NAME"
+EOF
+      ;;
+    FISHOOK_REMOTE_URL)
+      cat <<'EOF'
+FISHOOK_REMOTE_URL
+
+Remote URL for push operations.
+
+Type: string
+Available: pre-push hook only
+Example: "https://github.com/user/repo.git"
+
+Usage:
+  echo "Remote URL: $FISHOOK_REMOTE_URL"
+EOF
+      ;;
+    GIT_HOOK_KEY|GIT_HOOK_ARGS)
+      cat <<'EOF'
+GIT_HOOK_KEY / GIT_HOOK_ARGS
+
+Legacy variables for backwards compatibility.
+Use FISHOOK_HOOK and FISHOOK_ARGS instead.
+
+Status: deprecated
+EOF
+      ;;
+    *)
+      echo "Unknown variable: $var"
+      echo "Run 'fishook scope' to see all available variables."
+      return 1
+      ;;
+  esac
+}
+
+explain_function() {
+  local func="$1"
+  case "$func" in
+    old)
+      cat <<'EOF'
+old()
+
+Print the old version of the current file (from HEAD or FISHOOK_OLD_OID).
+
+Usage: old
+Output: file contents to stdout
+
+Available: during file events with FISHOOK_PATH set
+Returns: 0 on success
+
+Examples:
+  old | grep pattern
+  old > old-version.txt
+  if old | grep -q "TODO"; then
+    raise "TODO found in old version"
+  fi
+
+See also: new, diff
+EOF
+      ;;
+    new)
+      cat <<'EOF'
+new()
+
+Print the new version of the current file (from index/worktree or FISHOOK_NEW_OID).
+
+Usage: new
+Output: file contents to stdout
+
+Available: during file events with FISHOOK_PATH set
+Returns: 0 on success
+
+Examples:
+  new | grep pattern
+  new > new-version.txt
+  if new | grep -q "console.log"; then
+    raise "console.log found"
+  fi
+
+See also: old, diff
+EOF
+      ;;
+    diff)
+      cat <<'EOF'
+diff()
+
+Show the git diff for the current file.
+
+Usage: diff
+Output: git diff output to stdout
+
+Available: during file events with FISHOOK_PATH set
+Returns: 0 on success
+
+Examples:
+  diff | grep -q "TODO"
+  diff > changes.patch
+  if diff | grep -q "+.*password"; then
+    raise "Password added to file"
+  fi
+
+See also: old, new
+EOF
+      ;;
+    modify)
+      cat <<'EOF'
+modify([flags] [text])
+
+Modify the current file in index and/or worktree.
+
+Usage: modify [--index-only|--worktree-only|--no-stage] [text]
+
+Flags:
+  --index-only, --staged-only      Only update the staged version
+  --worktree-only, --local-only    Update worktree and stage it
+  --no-stage                       Update worktree but don't stage
+
+Input: Reads from stdin if no text argument provided
+Available: during file events with FISHOOK_PATH set
+Returns: 0 on success
+
+Examples:
+  new | sed 's/foo/bar/' | modify
+  modify "new content here"
+  new | tr '[:lower:]' '[:upper:]' | modify --index-only
+  echo "# Header" | modify --no-stage
+
+See also: pcsed, new
+EOF
+      ;;
+    pcsed)
+      cat <<'EOF'
+pcsed([modify-flags] sed-expr)
+
+Apply sed transformation to current file (uses modify internally).
+
+Usage: pcsed [modify-flags] <sed-expression>
+
+Flags: same as modify (--index-only, --worktree-only, --no-stage)
+Available: during file events with FISHOOK_PATH set
+Returns: 0 on success, 2 on usage error
+
+Examples:
+  pcsed 's/TODO/DONE/g'
+  pcsed --index-only 's/version = .*/version = 2.0/'
+  pcsed 's/foo/bar/gi' --no-stage
+
+Note: Uses sed -E (extended regex)
+See also: modify, new
+EOF
+      ;;
+    raise)
+      cat <<'EOF'
+raise(message)
+
+Fail the hook with an error message and exit code 1.
+
+Usage: raise <message>
+
+Arguments:
+  message    Error message to display
+
+Output: Formatted error message to stderr
+Exit: Always exits with code 1
+
+Examples:
+  raise "commit message too short"
+  raise "TODO found in staged files"
+  [[ -n "$FISHOOK_PATH" ]] || raise "FISHOOK_PATH not set"
+
+See also: forbid_pattern, forbid_file_pattern
+EOF
+      ;;
+    forbid_pattern)
+      cat <<'EOF'
+forbid_pattern(pattern [message])
+
+Fail if file content matches regex pattern.
+
+Usage: forbid_pattern <pattern> [message]
+
+Arguments:
+  pattern    Extended regex pattern to search for
+  message    Optional error message (default: "contains forbidden pattern")
+
+Available: during file events with FISHOOK_PATH set
+Returns: 0 if pattern not found, exits 1 if found
+
+Examples:
+  forbid_pattern 'console\.log' "console.log not allowed"
+  forbid_pattern '\bTODO\b'
+  forbid_pattern 'password.*=' "Password hardcoded in file"
+
+See also: forbid_file_pattern, raise, new
+EOF
+      ;;
+    forbid_file_pattern)
+      cat <<'EOF'
+forbid_file_pattern(pattern [message])
+
+Fail if filename matches regex pattern.
+
+Usage: forbid_file_pattern <pattern> [message]
+
+Arguments:
+  pattern    Extended regex pattern to match filename against
+  message    Optional error message (default: "file name matches forbidden pattern")
+
+Available: during file events with FISHOOK_PATH set
+Returns: 0 if pattern doesn't match, exits 1 if matches
+
+Examples:
+  forbid_file_pattern '\.orig$' "merge conflict files not allowed"
+  forbid_file_pattern '^\.env' ".env files should not be committed"
+  forbid_file_pattern 'test-.*\.skip\.js' "Skipped test files not allowed"
+
+See also: forbid_pattern, raise
+EOF
+      ;;
+    ensure_executable)
+      cat <<'EOF'
+ensure_executable([path])
+
+Make file executable if it isn't already (chmod +x and git add).
+
+Usage: ensure_executable [path]
+
+Arguments:
+  path    Optional file path (defaults to FISHOOK_PATH)
+
+Available: during file events or with explicit path
+Returns: 0 on success, 1 on error
+
+Examples:
+  ensure_executable
+  ensure_executable scripts/deploy.sh
+  ensure_executable "$FISHOOK_DST"
+
+Note: Automatically stages the change
+EOF
+      ;;
+    modify_commit_message)
+      cat <<'EOF'
+modify_commit_message(file sed-expr)
+
+Modify a commit message file with sed.
+
+Usage: modify_commit_message <file> <sed-expression>
+
+Arguments:
+  file        Path to commit message file (usually $1 in commit-msg hook)
+  sed-expr    Sed expression to apply
+
+Available: commit-msg, prepare-commit-msg hooks
+Returns: 0 on success
+
+Examples:
+  modify_commit_message "$1" 's/^/[PREFIX] /'
+  modify_commit_message "$1" '1s/^/JIRA-123: /'
+  modify_commit_message "$1" '/^#/d'
+
+Note: Modifies file in-place with sed -i
+EOF
+      ;;
+    iter_source)
+      cat <<'EOF'
+iter_source(directory)
+
+Source all .sh files in a directory.
+
+Usage: iter_source <directory>
+
+Arguments:
+  directory    Path to directory containing .sh files
+
+Returns: 0 on success, 1 if directory doesn't exist
+
+Examples:
+  iter_source "$FISHOOK_COMMON/plugins"
+  iter_source "$FISHOOK_REPO_ROOT/hooks/helpers"
+
+Use case: Load custom helper functions from a directory
+EOF
+      ;;
+    fishook_old_path)
+      cat <<'EOF'
+fishook_old_path()
+
+Print the "old" path (FISHOOK_SRC or FISHOOK_PATH).
+
+Usage: fishook_old_path
+Output: path string to stdout
+
+Available: during file events
+Returns: 0 always
+
+Example:
+  path=$(fishook_old_path)
+  echo "Old path: $path"
+
+See also: fishook_new_path, old
+EOF
+      ;;
+    fishook_new_path)
+      cat <<'EOF'
+fishook_new_path()
+
+Print the "new" path (FISHOOK_DST or FISHOOK_PATH).
+
+Usage: fishook_new_path
+Output: path string to stdout
+
+Available: during file events
+Returns: 0 always
+
+Example:
+  path=$(fishook_new_path)
+  echo "New path: $path"
+
+See also: fishook_old_path, new
+EOF
+      ;;
+    *)
+      echo "Unknown function: $func"
+      echo "Run 'fishook scope' to see all available functions."
+      return 1
+      ;;
+  esac
+}
+
+explain_command() {
+  local cmd="$1"
+  case "$cmd" in
+    install)
+      cat <<'EOF'
+fishook install
+
+Install fishook stubs into .git/hooks directory.
+
+Usage: fishook install [--config /path/to/fishook.json] [--hooks-path PATH]
+
+Options:
+  --config PATH       Use specific config file (default: <repo-root>/fishook.json)
+  --hooks-path PATH   Install to specific hooks directory (default: .git/hooks)
+
+Behavior:
+  - Creates a sample fishook.json if it doesn't exist
+  - Installs stub scripts for all standard git hooks
+  - Prompts for existing hooks (overwrite/chain/backup)
+  - Writes hooks that call: fishook <hook-name> "$@"
+
+Environment variable for automation:
+  FISHOOK_INSTALL_CHOICE=1|2|3    Non-interactive choice:
+    1 = overwrite
+    2 = chain (preserve existing hook)
+    3 = backup
+
+Examples:
+  fishook install
+  fishook install --config custom-hooks.json
+  FISHOOK_INSTALL_CHOICE=2 fishook install
+EOF
+      ;;
+    uninstall)
+      cat <<'EOF'
+fishook uninstall
+
+Remove fishook stubs from .git/hooks directory.
+
+Usage: fishook uninstall [--hooks-path PATH]
+
+Options:
+  --hooks-path PATH   Uninstall from specific hooks directory (default: .git/hooks)
+
+Behavior:
+  - Removes all fishook-managed hook stubs
+  - Restores chained hooks from .fishook-prev files
+  - Removes fishook.json config file
+
+Examples:
+  fishook uninstall
+  fishook uninstall --hooks-path /path/to/hooks
+EOF
+      ;;
+    list)
+      cat <<'EOF'
+fishook list
+
+List all available git hooks with descriptions.
+
+Usage: fishook list
+
+Output: Categorized list of hooks with explanations
+
+Categories:
+  - Client-side (patch/email workflows)
+  - Client-side (commit workflow)
+  - Client-side (branch/history changes)
+  - Client-side (push/maintenance)
+  - Server-side (bare repo only)
+  - Performance
+
+Example:
+  fishook list
+EOF
+      ;;
+    scope)
+      cat <<'EOF'
+fishook scope
+
+Show all available environment variables and functions.
+
+Usage: fishook scope
+
+Output: Complete reference of:
+  - Base variables (always available)
+  - Event-specific variables (file/ref events)
+  - File content helper functions
+  - File modification functions
+  - Validation functions
+  - Utility functions
+
+Example:
+  fishook scope
+  fishook scope | less
+EOF
+      ;;
+    help|explain)
+      cat <<'EOF'
+fishook help / fishook explain
+
+Get detailed help on hooks, variables, functions, or commands.
+
+Usage:
+  fishook help                            Show general usage
+  fishook help <hook-name>                Explain specific hook
+  fishook help <variable-name>            Explain variable (e.g., FISHOOK_PATH)
+  fishook help <function-name>            Explain function (e.g., new, modify)
+  fishook help <command>                  Explain command (e.g., install)
+
+Examples:
+  fishook help pre-commit
+  fishook help FISHOOK_PATH
+  fishook help modify
+  fishook help install
+
+Note: 'fishook explain' is an alias for 'fishook help'
+EOF
+      ;;
+    *)
+      echo "Unknown command: $cmd"
+      echo ""
+      echo "Available commands: install, uninstall, list, scope, help"
+      return 1
+      ;;
+  esac
+}
+
+do_explain() {
   local -a args=()
   mapfile -d '' -t args < <(parse_flags "$@")
 
-  local hook="${args[0]:-}"
-  [[ -n "$hook" ]] || die "usage: $0 explain <hook-name> [--config path] [--hooks-path PATH]"
-  hook_known "$hook" || die "unknown hook: $hook"
+  local topic="${args[0]:-}"
+  [[ -n "$topic" ]] || die "usage: fishook explain <hook-name|variable|function|command>"
 
-  [[ -n "$CONFIG_PATH" ]] || CONFIG_PATH="$(default_config_path)"
-  [[ -n "$HOOKS_PATH" ]] || HOOKS_PATH="$(default_hooks_path)"
+  # Check if it's a built-in command
+  case "$topic" in
+    install|uninstall|list|scope|help|explain)
+      explain_command "$topic"
+      return 0
+      ;;
+  esac
 
-  echo "$hook"
-  echo "  $(hook_explain_text "$hook")"
-
-  if [[ ! -f "$CONFIG_PATH" ]]; then
-    echo "  fishook.json: (missing) ${CONFIG_PATH}"
+  # Check if it's a variable (starts with FISHOOK_ or GIT_HOOK_)
+  if [[ "$topic" == FISHOOK_* || "$topic" == GIT_HOOK_* ]]; then
+    explain_variable "$topic"
     return 0
   fi
 
-  local run_json
-  run_json="$(hook_run_cmds_json "$hook")"
-  if [[ "$run_json" == "[]" ]]; then
-    echo "  configured actions (run): (none)"
-  else
-    echo "  configured actions (run):"
-    printf '%s\n' "$run_json" | jq -r '.[]' | sed 's/^/    - /'
+  # Check if it's a known function
+  case "$topic" in
+    old|new|diff|modify|pcsed|raise|forbid_pattern|forbid_file_pattern|ensure_executable|modify_commit_message|iter_source|fishook_old_path|fishook_new_path)
+      explain_function "$topic"
+      return 0
+      ;;
+  esac
+
+  # Check if it's a known hook
+  if hook_known "$topic"; then
+    require_jq
+    in_git_repo || die "not inside a git repository"
+
+    [[ -n "$CONFIG_PATH" ]] || CONFIG_PATH="$(default_config_path)"
+    [[ -n "$HOOKS_PATH" ]] || HOOKS_PATH="$(default_hooks_path)"
+
+    echo "$topic"
+    echo "  $(hook_explain_text "$topic")"
+    echo
+
+    hook_scope_details "$topic"
+    echo
+
+    if [[ ! -f "$CONFIG_PATH" ]]; then
+      echo "fishook.json: (missing) ${CONFIG_PATH}"
+      return 0
+    fi
+
+    echo "Configured actions in ${CONFIG_PATH}:"
+    echo
+
+    local run_json
+    run_json="$(hook_run_cmds_json "$topic")"
+    if [[ "$run_json" == "[]" ]]; then
+      echo "  run: (none)"
+    else
+      echo "  run:"
+      printf '%s\n' "$run_json" | jq -r '.[]' | sed 's/^/    - /'
+    fi
+
+    local blocks_json
+    blocks_json="$(hook_blocks_json "$topic")"
+    if [[ "$blocks_json" != "[]" ]]; then
+      echo
+      echo "  blocks/handlers:"
+      local idx=0
+      while IFS= read -r block; do
+        idx=$((idx + 1))
+        local apply_json skip_json
+        apply_json="$(block_apply_to_json "$block")"
+        skip_json="$(block_skip_list_json "$block")"
+        echo "    block #$idx:"
+        if [[ "$apply_json" != "[]" ]]; then
+          echo "      applyTo:"
+          printf '%s\n' "$apply_json" | jq -r '.[]' | sed 's/^/        - /'
+        fi
+        if [[ "$skip_json" != "[]" ]]; then
+          echo "      skipList:"
+          printf '%s\n' "$skip_json" | jq -r '.[]' | sed 's/^/        - /'
+        fi
+        local keys=(
+          onAdd onChange onDelete onMove onCopy onFileEvent
+          onRefCreate onRefUpdate onRefDelete onRefEvent
+          onEvent
+        )
+        local any=0 k kjson
+        for k in "${keys[@]}"; do
+          kjson="$(block_key_cmds_json "$block" "$k")"
+          [[ "$kjson" == "[]" ]] && continue
+          [[ $any -eq 0 ]] && any=1
+          echo "      ${k}:"
+          printf '%s\n' "$kjson" | jq -r '.[]' | sed 's/^/        - /'
+        done
+        [[ $any -eq 0 ]] && echo "      (no handlers)"
+      done < <(printf '%s' "$blocks_json" | jq -c '.[]')
+    fi
+    return 0
   fi
 
-  local blocks_json
-  blocks_json="$(hook_blocks_json "$hook")"
-  if [[ "$blocks_json" != "[]" ]]; then
-    echo "  configured blocks/handlers:"
-    local idx=0
-    while IFS= read -r block; do
-      idx=$((idx + 1))
-      local apply_json skip_json
-      apply_json="$(block_apply_to_json "$block")"
-      skip_json="$(block_skip_list_json "$block")"
-      echo "    block #$idx:"
-      if [[ "$apply_json" != "[]" ]]; then
-        echo "      applyTo:"
-        printf '%s\n' "$apply_json" | jq -r '.[]' | sed 's/^/        - /'
-      fi
-      if [[ "$skip_json" != "[]" ]]; then
-        echo "      skipList:"
-        printf '%s\n' "$skip_json" | jq -r '.[]' | sed 's/^/        - /'
-      fi
-      local keys=(
-        onAdd onChange onDelete onMove onCopy onFileEvent
-        onRefCreate onRefUpdate onRefDelete onRefEvent
-        onEvent
-      )
-      local any=0 k kjson
-      for k in "${keys[@]}"; do
-        kjson="$(block_key_cmds_json "$block" "$k")"
-        [[ "$kjson" == "[]" ]] && continue
-        [[ $any -eq 0 ]] && any=1
-        echo "      ${k}:"
-        printf '%s\n' "$kjson" | jq -r '.[]' | sed 's/^/        - /'
-      done
-      [[ $any -eq 0 ]] && echo "      (no handlers)"
-    done < <(printf '%s' "$blocks_json" | jq -c '.[]')
-  fi
+  # Not found
+  echo "Unknown topic: $topic"
+  echo ""
+  echo "Usage: fishook explain <topic>"
+  echo ""
+  echo "Topics can be:"
+  echo "  - Hook names: pre-commit, commit-msg, pre-push, etc."
+  echo "  - Variables: FISHOOK_PATH, FISHOOK_HOOK, etc."
+  echo "  - Functions: new, old, modify, raise, etc."
+  echo "  - Commands: install, uninstall, list, scope"
+  echo ""
+  echo "Run 'fishook list' to see all hooks"
+  echo "Run 'fishook scope' to see all variables and functions"
+  return 1
 }
 
 do_install() {
@@ -958,7 +2211,7 @@ run_hook_for_config() {
   run_json="$(hook_run_cmds_json "$hook")"
   if [[ "$run_json" != "[]" ]]; then
     while IFS= read -r cmd; do
-      run_one_cmd "$hook" "$cmd" "${hook_args[@]}"
+      run_one_cmd "$hook" "$cmd" "run" "${hook_args[@]}"
     done < <(printf '%s' "$run_json" | jq -r '.[]')
   fi
 
@@ -1065,7 +2318,8 @@ Usage:
   fishook install                     [--config /path/to/fishook.json] [--hooks-path PATH]     # install all hooks
   fishook uninstall                   [--hooks-path PATH]                                      # uninstall all hooks
   fishook list                                                                                 # lists all hooks
-  fishook explain <hook-name>         [--config /path/to/fishook.json] [--hooks-path PATH]     # explain what the hook does and show configured actions
+  fishook scope                                                                                # show available environment variables and functions
+  fishook help <hook-name>            [--config /path/to/fishook.json] [--hooks-path PATH]     # explain hook: args, env vars, configured actions
   fishook <hook-name>  [hook-args...] [--config /path/to/fishook.json] [--dry-run]             # run the hook
 
 fishook.json:
@@ -1079,6 +2333,8 @@ fishook.json:
 
 Examples:
   fishook install
+  fishook scope
+  fishook help pre-commit
   fishook pre-commit --dry-run
   fishook commit-msg .git/COMMIT_EDITMSG
 EOF
@@ -1089,8 +2345,17 @@ CMD="${1:-}"
 shift || true
 
 case "${CMD}" in
-  ""|help|-h|--help)
-    print_usage
+  ""|help|-h|--help|explain)
+    if [[ $# -gt 0 ]]; then
+      if [[ "$1" == "scope" ]]; then
+        do_scope
+      else
+        # fishook help <hook-name> -> run explain
+        do_explain "$@"
+      fi
+    else
+      print_usage
+    fi
     exit 0
     ;;
   install)
@@ -1102,8 +2367,8 @@ case "${CMD}" in
   list)
     do_list
     ;;
-  explain)
-    do_explain "$@"
+  scope)
+    do_scope
     ;;
   *)
     do_run_hook "$CMD" "$@"
