@@ -64,7 +64,9 @@ GP_DIR="$(dirname "$PARENT_DIR")"
 GP_NAME="$(basename "$GP_DIR")"
 
 if [[ "$GP_NAME" == "node_modules" && -d "$GP_NAME/fishook" && -e "$GP_NAME/fishook/fishook.sh" ]]; then
-  fishook_dir="$GP_NAME/fishook"
+  PARENT_DIR="$GP_NAME/fishook"
+  GP_DIR="$(dirname "$PARENT_DIR")"
+  GP_NAME="$(basename "$GP_DIR")"
 fi
 fishook_dir="$(cd "$PARENT_DIR" && pwd)"
 
