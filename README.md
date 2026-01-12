@@ -268,6 +268,8 @@ Fishook includes reusable scripts in `$FISHOOK_COMMON/`:
 
 
 ### Environment Variables
+
+#### Available in hook commands:
 - `FISHOOK_COMMON` - path to fishook's common/ scripts directory (use for shared utilities)
 - `FISHOOK_CONFIG_DIR` - directory containing the current config file (for scoped configs)
 - `FISHOOK_REPO_ROOT` - absolute path to repo root (use this for paths!)
@@ -279,6 +281,9 @@ Fishook includes reusable scripts in `$FISHOOK_COMMON/`:
 - `FISHOOK_REF` - ref name (post-checkout: new HEAD; ref events in pre-push/update/etc)
 - `FISHOOK_OLD_OID`, `FISHOOK_NEW_OID` - commit oids
 - `FISHOOK_REMOTE_NAME`, `FISHOOK_REMOTE_URL` - remote info (pre-push only)
+
+#### Configuration options:
+- `FISHOOK_INSTALL_CHOICE` - bypass interactive prompt during install (set to `1`=overwrite, `2`=chain, `3`=backup). Useful for CI/CD and automated scenarios.
 
 ### Positional Arguments
 Git hook arguments are available as `$1`, `$2`, `$3`, etc. if you need them:

@@ -1,0 +1,9 @@
+{
+  "pre-commit": [{
+    "onFileEvent": "echo 'Processing JavaScript file'",
+    "applyTo": ["*.js"]
+  }, {
+    "onFileEvent": "echo 'Processing Python file'",
+    "applyTo": ["*.py"]
+  }]
+}

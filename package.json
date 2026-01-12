@@ -10,6 +10,10 @@
     "fishook": "./fishook.sh"
   },
   "scripts": {
+    "test": "bats tests",
+    "test:install": "bats tests/test_install.bats",
+    "test:integration": "bats tests/test_integration.bats",
+    "test:helpers": "bats tests/test_helpers.bats",
     "fishook": "./fishook.sh",
     "explain": "./fishook.sh explain",
     "postinstall": "./fishook.sh install",
@@ -39,5 +43,10 @@
     "proc-receive": "./fishook.sh proc-receive",
     "sendemail-validate": "./fishook.sh sendemail-validate",
     "fsmonitor-watchman": "./fishook.sh fsmonitor-watchman"
+  },
+  "devDependencies": {
+    "bats": "^1.13.0",
+    "bats-assert": "^2.2.4",
+    "bats-support": "^0.3.0"
   }
 }

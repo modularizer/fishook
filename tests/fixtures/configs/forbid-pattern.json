@@ -1,0 +1,5 @@
+{
+  "pre-commit": {
+    "onFileEvent": "forbid_pattern 'SECRET' 'Secrets are not allowed'"
+  }
+}

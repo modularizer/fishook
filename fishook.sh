@@ -193,6 +193,13 @@ EOF
 prompt_choice() {
   local hook="$1"
   local file="$2"
+
+  # Allow non-interactive mode via environment variable (useful for testing/automation)
+  if [[ -n "${FISHOOK_INSTALL_CHOICE:-}" ]]; then
+    echo "$FISHOOK_INSTALL_CHOICE"
+    return 0
+  fi
+
   echo
   echo "fishook: found existing hook: ${file}"
   echo "hook: ${hook}"
@@ -483,7 +490,7 @@ run_one_cmd() {
   shift 2 || true
   local -a hook_args=("$@")
 
-  [[ "$DRY_RUN" -eq 1 ]] && return 0
+  [[ "${FISHOOK_DRY_RUN:-0}" -eq 1 ]] && return 0
 
   # Setup/source commands (run before everything)
   local setup_cmds
@@ -991,6 +998,11 @@ do_run_hook() {
 
   local hook="$1"; shift || true
   hook_known "$hook" || die "unknown hook: $hook"
+
+  # Check for --dry-run flag before parse_flags (which runs in subshell)
+  for arg in "$@"; do
+    [[ "$arg" == "--dry-run" ]] && DRY_RUN=1
+  done
 
   local -a args=()
   mapfile -d '' -t args < <(parse_flags "$@")

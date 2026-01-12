@@ -1,0 +1,4 @@
+{
+  "pre-commit": "echo 'Running pre-commit hook'",
+  "post-commit": "echo 'Running post-commit hook'"
+}
