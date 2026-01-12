@@ -58,6 +58,17 @@ CONFIG_PATH=""
 HOOKS_PATH=""
 DRY_RUN=0
 
+THIS_SCRIPT="${BASH_SOURCE[0]}"
+PARENT_DIR="$(dirname "$THIS_SCRIPT")"
+GP_DIR="$(dirname "$PARENT_DIR")"
+GP_NAME="$(basename "$GP_DIR")"
+
+if [[ "$GP_NAME" == "node_modules" && -d "$GP_NAME/fishook" && -e "$GP_NAME/fishook/fishook.sh" ]]; then
+  fishook_dir="$GP_NAME/fishook"
+fi
+fishook_dir="$(cd "$PARENT_DIR" && pwd)"
+
+
 # Enable richer globs in [[ "$p" == $glob ]] matching (extglob helps; ** works fine as * * in pattern matching)
 shopt -s extglob
 
@@ -394,10 +405,8 @@ export_base_env() {
   gd="$(git_dir)" || gd=""
 
   # Find where fishook.sh is installed and set FISHOOK_COMMON to common/ directory
-  local fishook_dir
-  fishook_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  export FISHOOK_COMMON="${fishook_dir}/common"
 
+  export FISHOOK_COMMON="${fishook_dir}/common"
   export FISHOOK_HOOK="$hook"
   export FISHOOK_REPO_ROOT="$root"
   export FISHOOK_REPO_NAME="$(basename "$root" 2>/dev/null || echo "")"
