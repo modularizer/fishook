@@ -31,39 +31,17 @@ Repository = "https://github.com/yourname/fishook"
 Issues = "https://github.com/yourname/fishook/issues"
 
 [project.scripts]
-fishook = "fishook.cli:main"
-
-# Optional: expose every hook as a command too (nice for debugging / symmetry).
-applypatch-msg = "fishook.cli:hook_applypatch_msg"
-pre-applypatch = "fishook.cli:hook_pre_applypatch"
-post-applypatch = "fishook.cli:hook_post_applypatch"
-
-pre-commit = "fishook.cli:hook_pre_commit"
-pre-merge-commit = "fishook.cli:hook_pre_merge_commit"
-prepare-commit-msg = "fishook.cli:hook_prepare_commit_msg"
-commit-msg = "fishook.cli:hook_commit_msg"
-post-commit = "fishook.cli:hook_post_commit"
-
-pre-rebase = "fishook.cli:hook_pre_rebase"
-post-checkout = "fishook.cli:hook_post_checkout"
-post-merge = "fishook.cli:hook_post_merge"
-post-rewrite = "fishook.cli:hook_post_rewrite"
-
-pre-push = "fishook.cli:hook_pre_push"
-pre-auto-gc = "fishook.cli:hook_pre_auto_gc"
-
-pre-receive = "fishook.cli:hook_pre_receive"
-update = "fishook.cli:hook_update"
-post-receive = "fishook.cli:hook_post_receive"
-post-update = "fishook.cli:hook_post_update"
-push-to-checkout = "fishook.cli:hook_push_to_checkout"
-proc-receive = "fishook.cli:hook_proc_receive"
-
-sendemail-validate = "fishook.cli:hook_sendemail_validate"
-fsmonitor-watchman = "fishook.cli:hook_fsmonitor_watchman"
+fishook = "fishook:main"
 
 [tool.setuptools]
-include-package-data = true
+py-modules = ["fishook"]
 
-[tool.setuptools.package-data]
-fishook = ["fishook.sh", "common/*"]
+[tool.setuptools.data-files]
+"share/fishook" = ["fishook.sh"]
+"share/fishook/common" = ["common/*"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fishook.sh", "common*"]
+exclude = ["node_modules*"]
+
