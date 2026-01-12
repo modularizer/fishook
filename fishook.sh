@@ -308,15 +308,20 @@ prompt_choice() {
     return 0
   fi
 
-  echo
-  echo "fishook: found existing hook: ${file}"
-  echo "hook: ${hook}"
-  echo
-  echo "Choose what to do:"
-  echo "  1) overwrite (replace existing hook with fishook)"
-  echo "  2) chain (rename existing to ${file}.fishook-prev and run it before fishook)"
-  echo "  3) backup (rename existing to ${file}.bak.<timestamp>; not chained)"
-  echo -n "Enter 1/2/3: " >&2
+  # Send all interactive prompts to stderr so they stay together
+  {
+    echo
+    echo "fishook: found existing hook: ${file}"
+    echo "  (for git hook: ${hook})"
+    echo
+    echo "What would you like to do?"
+    echo "  [1] Overwrite - Replace existing hook with fishook"
+    echo "  [2] Chain     - Keep existing hook, run it before fishook"
+    echo "  [3] Backup    - Rename to ${file}.bak.TIMESTAMP (not run)"
+    echo
+    echo -n "Choice [1/2/3]: "
+  } >&2
+
   read -r choice
   echo "$choice"
 }
@@ -335,11 +340,8 @@ write_sample_config() {
 
   cat >"$path" <<'EOF'
 {
-  "_about": "run `fishook list` to see all options",
   "pre-commit": {
-    "run": ["echo pre-commit running on $FISHOOK_REPO_NAME"],
-    "onFileEvent": "new | grep -qi forbidden && raise \"contains forbidden word\" || true",
-    "skipList": ["fishook.json", "fishook.sh"]
+    "onFileEvent": "echo committing file $FISHOOK_PATH",
   }
 }
 EOF
@@ -1863,13 +1865,234 @@ EOF
 explain_command() {
   local cmd="$1"
   case "$cmd" in
+    config|json|fishook.json)
+      cat <<'EOF'
+fishook.json Configuration Format
+
+The fishook.json file configures which commands run for each git hook.
+
+Location: <repo-root>/fishook.json (or use --config to specify)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BASIC FORMATS
+
+1. Simple string command:
+   {
+     "pre-commit": "npm test"
+   }
+
+2. Array of commands (run in order):
+   {
+     "pre-commit": [
+       "npm run lint",
+       "npm test"
+     ]
+   }
+
+3. Object with "run" key:
+   {
+     "pre-commit": {
+       "run": "npm test"
+     }
+   }
+   Or:
+   {
+     "pre-commit": {
+       "run": ["npm run lint", "npm test"]
+     }
+   }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EVENT HANDLERS (for file and ref events)
+
+File Events (pre-commit, post-checkout, post-merge):
+  {
+    "pre-commit": {
+      "run": "echo only runs once, not per-file",
+      "onAdd": "echo added: $FISHOOK_PATH",
+      "onChange": "echo modified: $FISHOOK_PATH",
+      "onDelete": "echo deleted: $FISHOOK_PATH",
+      "onMove": "echo moved: $FISHOOK_SRC -> $FISHOOK_DST",
+      "onCopy": "echo copied: $FISHOOK_SRC -> $FISHOOK_DST",
+      "onFileEvent": "echo any file event: $FISHOOK_PATH"
+    }
+  }
+
+  Each handler can be a string or array of strings.
+  Available variables: FISHOOK_PATH, FISHOOK_SRC, FISHOOK_DST, etc.
+
+Ref Events (pre-push, pre-receive, post-receive, update):
+  {
+    "pre-push": {
+      "onRefCreate": "echo new ref: $FISHOOK_REF",
+      "onRefUpdate": "echo updated ref: $FISHOOK_REF",
+      "onRefDelete": "echo deleted ref: $FISHOOK_REF",
+      "onRefEvent": "echo any ref event: $FISHOOK_REF"
+    }
+  }
+
+  Available variables: FISHOOK_REF, FISHOOK_OLD_OID, FISHOOK_NEW_OID
+
+Generic Event Handler (runs for all events):
+  {
+    "pre-commit": {
+      "onEvent": "echo event kind: $FISHOOK_EVENT_KIND, type: $FISHOOK_EVENT"
+    }
+  }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FILTERING (applyTo / skipList)
+
+Apply handler only to specific file patterns:
+  {
+    "pre-commit": {
+      "applyTo": "*.js",
+      "onFileEvent": "eslint $FISHOOK_PATH"
+    }
+  }
+
+  Or multiple patterns:
+  {
+    "pre-commit": {
+      "applyTo": ["*.js", "*.ts"],
+      "onAdd": "eslint $FISHOOK_PATH"
+    }
+  }
+
+Skip specific patterns:
+  {
+    "pre-commit": {
+      "skipList": ["*.md", "docs/**"],
+      "onFileEvent": "run-checks $FISHOOK_PATH"
+    }
+  }
+
+Combine both:
+  {
+    "pre-commit": {
+      "applyTo": ["src/**/*.js"],
+      "skipList": ["src/**/*.test.js"],
+      "onFileEvent": "eslint $FISHOOK_PATH"
+    }
+  }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MULTIPLE BLOCKS (array of handler objects)
+
+Run different commands for different file patterns:
+  {
+    "pre-commit": [
+      {
+        "applyTo": "*.js",
+        "onFileEvent": "eslint $FISHOOK_PATH"
+      },
+      {
+        "applyTo": "*.py",
+        "onFileEvent": "black --check $FISHOOK_PATH"
+      },
+      {
+        "applyTo": "*.sh",
+        "onFileEvent": "shellcheck $FISHOOK_PATH"
+      }
+    ]
+  }
+
+Blocks run in order, each with their own filters.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GLOBAL SETUP (setup / source)
+
+Commands that run before every hook command:
+  {
+    "setup": "export NODE_ENV=test",
+    "source": "/path/to/helpers.sh",
+    "pre-commit": "npm test"
+  }
+
+  Or arrays:
+  {
+    "setup": [
+      "export NODE_ENV=test",
+      "export DEBUG=1"
+    ],
+    "source": [
+      "~/.bashrc",
+      "./scripts/helpers.sh"
+    ],
+    "pre-commit": "npm test"
+  }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+COMPLETE EXAMPLE
+
+  {
+    "setup": "export NODE_ENV=test",
+    "source": "./scripts/git-helpers.sh",
+
+    "pre-commit": [
+      {
+        "run": "npm run type-check"
+      },
+      {
+        "applyTo": ["*.js", "*.jsx"],
+        "skipList": ["*.test.js"],
+        "onFileEvent": [
+          "eslint $FISHOOK_PATH",
+          "prettier --check $FISHOOK_PATH"
+        ]
+      },
+      {
+        "applyTo": "*.sh",
+        "onAdd": "ensure_executable",
+        "onFileEvent": "shellcheck $FISHOOK_PATH"
+      }
+    ],
+
+    "commit-msg": "grep -qE '^(feat|fix|docs|style|refactor|test|chore):' $1 || raise 'Bad commit format'",
+
+    "pre-push": {
+      "onRefUpdate": "echo Pushing to $FISHOOK_REF"
+    }
+  }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+HELPER FUNCTIONS
+
+Available in all commands:
+  old              Get old version of file
+  new              Get new version of file
+  diff             Show git diff for file
+  modify           Modify file in index/worktree
+  pcsed            Apply sed to file
+  raise            Fail with error message
+  forbid_pattern   Fail if content matches pattern
+  forbid_file_pattern   Fail if filename matches pattern
+  ensure_executable     Make file executable
+
+Run 'fishook scope' to see all available variables and functions.
+Run 'fishook help <hook-name>' to see hook-specific documentation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EOF
+      ;;
     install)
       cat <<'EOF'
 fishook install
 
 Install fishook stubs into .git/hooks directory.
 
-Usage: fishook install [--config /path/to/fishook.json] [--hooks-path PATH]
+Usage: fishook install [hook...] [--config /path/to/fishook.json] [--hooks-path PATH]
+
+Arguments:
+  hook...             Optional hook names to install (e.g., pre-commit post-checkout)
+                      If omitted, installs all hooks
 
 Options:
   --config PATH       Use specific config file (default: <repo-root>/fishook.json)
@@ -1877,7 +2100,7 @@ Options:
 
 Behavior:
   - Creates a sample fishook.json if it doesn't exist
-  - Installs stub scripts for all standard git hooks
+  - Installs stub scripts for specified hooks (or all hooks if none specified)
   - Prompts for existing hooks (overwrite/chain/backup)
   - Writes hooks that call: fishook <hook-name> "$@"
 
@@ -1888,9 +2111,11 @@ Environment variable for automation:
     3 = backup
 
 Examples:
-  fishook install
-  fishook install --config custom-hooks.json
-  FISHOOK_INSTALL_CHOICE=2 fishook install
+  fishook install                              # install all hooks
+  fishook install pre-commit                   # install only pre-commit
+  fishook install pre-commit post-checkout     # install multiple specific hooks
+  fishook install --config custom-hooks.json   # install all with custom config
+  FISHOOK_INSTALL_CHOICE=2 fishook install     # install all, chain existing hooks
 EOF
       ;;
     uninstall)
@@ -1899,18 +2124,24 @@ fishook uninstall
 
 Remove fishook stubs from .git/hooks directory.
 
-Usage: fishook uninstall [--hooks-path PATH]
+Usage: fishook uninstall [hook...] [--hooks-path PATH]
+
+Arguments:
+  hook...             Optional hook names to uninstall (e.g., pre-commit post-checkout)
+                      If omitted, uninstalls all hooks
 
 Options:
   --hooks-path PATH   Uninstall from specific hooks directory (default: .git/hooks)
 
 Behavior:
-  - Removes all fishook-managed hook stubs
+  - Removes fishook-managed hook stubs for specified hooks (or all if none specified)
   - Restores chained hooks from .fishook-prev files
-  - Removes fishook.json config file
+  - Does NOT remove fishook.json config file
 
 Examples:
-  fishook uninstall
+  fishook uninstall                          # uninstall all hooks
+  fishook uninstall pre-commit               # uninstall only pre-commit
+  fishook uninstall pre-commit post-push     # uninstall multiple specific hooks
   fishook uninstall --hooks-path /path/to/hooks
 EOF
       ;;
@@ -1961,7 +2192,7 @@ EOF
       cat <<'EOF'
 fishook help / fishook explain
 
-Get detailed help on hooks, variables, functions, or commands.
+Get detailed help on hooks, variables, functions, commands, or config format.
 
 Usage:
   fishook help                            Show general usage
@@ -1969,13 +2200,16 @@ Usage:
   fishook help <variable-name>            Explain variable (e.g., FISHOOK_PATH)
   fishook help <function-name>            Explain function (e.g., new, modify)
   fishook help <command>                  Explain command (e.g., install)
+  fishook help config                     Show fishook.json format and examples
 
 Examples:
-  fishook help pre-commit
-  fishook help FISHOOK_PATH
-  fishook help modify
-  fishook help install
+  fishook help pre-commit                 # Hook documentation
+  fishook help FISHOOK_PATH               # Variable documentation
+  fishook help modify                     # Function documentation
+  fishook help install                    # Command documentation
+  fishook help config                     # JSON configuration guide
 
+Aliases: fishook help json, fishook help fishook.json
 Note: 'fishook explain' is an alias for 'fishook help'
 EOF
       ;;
@@ -1993,11 +2227,11 @@ do_explain() {
   mapfile -d '' -t args < <(parse_flags "$@")
 
   local topic="${args[0]:-}"
-  [[ -n "$topic" ]] || die "usage: fishook explain <hook-name|variable|function|command>"
+  [[ -n "$topic" ]] || die "usage: fishook explain <hook-name|variable|function|command|config>"
 
-  # Check if it's a built-in command
+  # Check if it's a built-in command or config
   case "$topic" in
-    install|uninstall|list|scope|help|explain)
+    install|uninstall|list|scope|help|explain|config|json|fishook.json)
       explain_command "$topic"
       return 0
       ;;
@@ -2098,9 +2332,11 @@ do_explain() {
   echo "  - Variables: FISHOOK_PATH, FISHOOK_HOOK, etc."
   echo "  - Functions: new, old, modify, raise, etc."
   echo "  - Commands: install, uninstall, list, scope"
+  echo "  - Config format: config, json, fishook.json"
   echo ""
   echo "Run 'fishook list' to see all hooks"
   echo "Run 'fishook scope' to see all variables and functions"
+  echo "Run 'fishook help config' to see JSON configuration format"
   return 1
 }
 
@@ -2108,8 +2344,8 @@ do_install() {
   require_jq
   in_git_repo || die "not inside a git repository"
 
-  local -a _ignored=()
-  mapfile -d '' -t _ignored < <(parse_flags "$@")
+  local -a hook_args=()
+  mapfile -d '' -t hook_args < <(parse_flags "$@")
 
   [[ -n "$HOOKS_PATH" ]] || HOOKS_PATH="$(default_hooks_path)"
   mkdir -p "$HOOKS_PATH"
@@ -2117,8 +2353,23 @@ do_install() {
   [[ -n "$CONFIG_PATH" ]] || CONFIG_PATH="$(default_config_path)"
   write_sample_config "$CONFIG_PATH"
 
+  # Determine which hooks to install
+  local -a hooks_to_install=()
+  if [[ "${#hook_args[@]}" -eq 0 ]]; then
+    # No arguments: install all hooks
+    hooks_to_install=("${ALL_HOOKS[@]}")
+  else
+    # Arguments provided: validate and install only specified hooks
+    for hook in "${hook_args[@]}"; do
+      if ! hook_known "$hook"; then
+        die "unknown hook: $hook (run 'fishook list' to see available hooks)"
+      fi
+      hooks_to_install+=("$hook")
+    done
+  fi
+
   local hook file prev bak choice
-  for hook in "${ALL_HOOKS[@]}"; do
+  for hook in "${hooks_to_install[@]}"; do
     file="${HOOKS_PATH}/${hook}"
 
     if [[ ! -e "$file" ]]; then
@@ -2156,30 +2407,45 @@ do_install() {
     esac
   done
 
-  echo "fishook: installed stubs into ${HOOKS_PATH}" >&2
+  if [[ "${#hooks_to_install[@]}" -eq "${#ALL_HOOKS[@]}" ]]; then
+    echo "fishook: installed all ${#hooks_to_install[@]} hooks into ${HOOKS_PATH}" >&2
+  else
+    echo "fishook: installed ${#hooks_to_install[@]} hook(s) into ${HOOKS_PATH}" >&2
+  fi
 }
 
 do_uninstall() {
   in_git_repo || die "not inside a git repository"
 
-  [[ -n "$CONFIG_PATH" ]] || CONFIG_PATH="$(default_config_path)"
-  if [[ -e "$CONFIG_PATH" ]]; then
-    rm "$CONFIG_PATH"
-    echo "removed $CONFIG_PATH"
-  fi
-
-  local -a _ignored=()
-  mapfile -d '' -t _ignored < <(parse_flags "$@")
+  local -a hook_args=()
+  mapfile -d '' -t hook_args < <(parse_flags "$@")
 
   [[ -n "$HOOKS_PATH" ]] || HOOKS_PATH="$(default_hooks_path)"
 
+  # Determine which hooks to uninstall
+  local -a hooks_to_uninstall=()
+  if [[ "${#hook_args[@]}" -eq 0 ]]; then
+    # No arguments: uninstall all hooks
+    hooks_to_uninstall=("${ALL_HOOKS[@]}")
+  else
+    # Arguments provided: validate and uninstall only specified hooks
+    for hook in "${hook_args[@]}"; do
+      if ! hook_known "$hook"; then
+        die "unknown hook: $hook (run 'fishook list' to see available hooks)"
+      fi
+      hooks_to_uninstall+=("$hook")
+    done
+  fi
+
   local hook file prev
-  for hook in "${ALL_HOOKS[@]}"; do
+  local uninstalled_count=0
+  for hook in "${hooks_to_uninstall[@]}"; do
     file="${HOOKS_PATH}/${hook}"
     prev="${file}.fishook-prev"
 
     if [[ -e "$file" ]] && is_fishook_stub "$file"; then
       rm -f "$file"
+      ((uninstalled_count++))
       if [[ -e "$prev" ]]; then
         mv "$prev" "$file"
         chmod +x "$file" || true
@@ -2187,7 +2453,13 @@ do_uninstall() {
     fi
   done
 
-  echo "fishook: uninstalled stubs from ${HOOKS_PATH}" >&2
+  if [[ $uninstalled_count -eq 0 ]]; then
+    echo "fishook: no fishook stubs found to uninstall" >&2
+  elif [[ "${#hooks_to_uninstall[@]}" -eq "${#ALL_HOOKS[@]}" ]]; then
+    echo "fishook: uninstalled all hooks from ${HOOKS_PATH}" >&2
+  else
+    echo "fishook: uninstalled ${uninstalled_count} hook(s) from ${HOOKS_PATH}" >&2
+  fi
 }
 
 run_hook_for_config() {
@@ -2312,34 +2584,50 @@ do_run_hook() {
 
 print_usage() {
   cat >&1 <<EOF
-fishook
+fishook - Git hook runner driven by fishook.json
 
 Usage:
-  fishook install                     [--config /path/to/fishook.json] [--hooks-path PATH]     # install all hooks
-  fishook uninstall                   [--hooks-path PATH]                                      # uninstall all hooks
-  fishook list                                                                                 # lists all hooks
-  fishook scope                                                                                # show available environment variables and functions
-  fishook help <hook-name>            [--config /path/to/fishook.json] [--hooks-path PATH]     # explain hook: args, env vars, configured actions
-  fishook <hook-name>  [hook-args...] [--config /path/to/fishook.json] [--dry-run]             # run the hook
+  fishook install [hook...]           [--config /path/to/fishook.json] [--hooks-path PATH]
+  fishook uninstall [hook...]         [--hooks-path PATH]
+  fishook list                        List all available git hooks
+  fishook scope                       Show environment variables and helper functions
+  fishook help <topic>                Explain hook/variable/function/command/config
+  fishook <hook-name> [args...]       Run a specific hook
 
-fishook.json:
-  - Put a fishook.json in your repo (default: <repo-root>/fishook.json)
-  - Keys are git hook names (e.g. "pre-commit", "commit-msg")
-  - Values are:
-      * "string command"
-      * ["cmd1", "cmd2", ...]
-      * {"run": "cmd"} or {"run": ["cmd1","cmd2"]}  ("commands" also works)
-      * or object/array-of-objects with handlers + optional applyTo/skipList
+Configuration:
+  Put a fishook.json in your repo root with commands for each hook.
+  Run 'fishook help config' for full JSON format documentation.
+
+  Simple example:
+    {
+      "pre-commit": "npm test"
+    }
+
+  With event handlers:
+    {
+      "pre-commit": {
+        "run": "npm run type-check",
+        "onFileEvent": "echo committing \$FISHOOK_PATH"
+      }
+    }
 
 Examples:
-  fishook install
-  fishook scope
-  fishook help pre-commit
-  fishook pre-commit --dry-run
-  fishook commit-msg .git/COMMIT_EDITMSG
+  fishook install                    # Install all hooks
+  fishook install pre-commit         # Install only pre-commit
+  fishook uninstall pre-push         # Uninstall only pre-push
+  fishook help config                # Show full JSON configuration guide
+  fishook help pre-commit            # Hook-specific documentation
+  fishook scope                      # List all env vars and functions
+  fishook pre-commit --dry-run       # Test pre-commit hook
 EOF
 }
 
+
+do_learn(){
+  print_usage
+  do_scope
+  do_explain config
+}
 # ---- dispatch ----
 CMD="${1:-}"
 shift || true
@@ -2357,6 +2645,9 @@ case "${CMD}" in
       print_usage
     fi
     exit 0
+    ;;
+  learn)
+    do_learn
     ;;
   install)
     do_install "$@"
