@@ -11,7 +11,7 @@ Tiny git hook runner driven by `fishook.json`
 * auto-generate changelogs
 * etc.
 
-## Install (coming soon)
+## Install
 
 ### With node
 ```bash
