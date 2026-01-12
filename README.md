@@ -18,9 +18,9 @@ Tiny git hook runner driven by `fishook.json`
 npm install --save-dev fishook  # (runs fishhook install during postinstall)
 ```
 
-### With pip
+### With pip/pipx
 ```bash
-pip install fishook
+pipx install fishook            # or pip install fishook
 fishhook install                # install hooks
 ```
 
