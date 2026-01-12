@@ -5,26 +5,30 @@ BATS-based test suite for the fishook git hook runner.
 ## Running Tests
 
 ```bash
-# Run all tests
+# Run all tests (69 tests)
 npm test
 
 # Run specific test files
-npm run test:install      # Installation/uninstallation tests
-npm run test:integration  # Integration tests
-npm run test:helpers      # Helper utility tests
+npm run test:install      # Installation/uninstallation tests (8 tests)
+npm run test:integration  # Integration tests (12 tests)
+npm run test:helpers      # Helper utility tests (11 tests)
+npm run test:common       # Common utilities tests (15 tests)
+npm run test:hooks        # Various git hooks tests (23 tests)
 ```
 
 ## Test Structure
 
 ```
 tests/
-├── README.md              # This file
-├── helpers.bash           # Shared test helpers and setup functions
-├── test_install.bats      # Tests for install/uninstall functionality
-├── test_integration.bats  # End-to-end integration tests
-├── test_helpers.bats      # Tests for common/* helper utilities
-└── fixtures/              # Test fixtures and sample configs
-    └── configs/           # Sample fishook.json configurations
+├── README.md               # This file
+├── helpers.bash            # Shared test helpers and setup functions
+├── test_install.bats       # Tests for install/uninstall functionality
+├── test_integration.bats   # End-to-end integration tests
+├── test_helpers.bats       # Tests for common/* helper utilities
+├── test_common_utils.bats  # Tests for all common/ utilities (forbid-file-pattern, pcsed, etc.)
+├── test_various_hooks.bats # Tests for various git hooks (commit-msg, post-commit, pre-push, etc.)
+└── fixtures/               # Test fixtures and sample configs
+    └── configs/            # Sample fishook.json configurations
 ```
 
 ## How Tests Work
@@ -52,7 +56,7 @@ Available in `helpers.bash`:
 
 ## Test Coverage
 
-### Installation Tests (test_install.bats)
+### Installation Tests (test_install.bats) - 8 tests
 - ✅ Installing configured hooks
 - ✅ Uninstalling hooks
 - ✅ Installing without config
@@ -61,7 +65,7 @@ Available in `helpers.bash`:
 - ✅ Backing up existing hooks (option 3)
 - ✅ Verifying installed hooks reference fishook.sh
 
-### Integration Tests (test_integration.bats)
+### Integration Tests (test_integration.bats) - 12 tests
 - ✅ Running simple hooks
 - ✅ Hooks that fail and block commits
 - ✅ Post-commit hooks
@@ -72,13 +76,46 @@ Available in `helpers.bash`:
 - ✅ Dry-run mode (prevents command execution)
 - ✅ List and explain commands
 
-### Helper Utility Tests (test_helpers.bats)
+### Helper Utility Tests (test_helpers.bats) - 11 tests
 - ✅ forbid_pattern - blocking forbidden patterns
 - ✅ forbid_pattern - regex support
 - ✅ ensure_executable - making scripts executable
 - ✅ modify_commit_message - editing commit messages
 - ✅ File filters with applyTo and skipList
 - ✅ Event handlers (onAdd, onChange)
+
+### Common Utilities Tests (test_common_utils.bats) - 15 tests
+- ✅ forbid_file_pattern - blocking files by name pattern
+- ✅ forbid_file_pattern - regex patterns for filenames
+- ✅ pcsed - applying sed transformations to staged content
+- ✅ pcsed --index-only - modifying only staged content
+- ✅ pcsed - regex replacements
+- ✅ scope.sh helpers - new(), old(), diff() functions
+- ✅ raise() function for custom error messages
+- ✅ Multiple utilities working together
+- ✅ Utilities with filters (applyTo, skipList)
+
+### Various Git Hooks Tests (test_various_hooks.bats) - 23 tests
+- ✅ **commit-msg** - validating commit message format
+- ✅ **commit-msg** - modifying commit messages
+- ✅ **commit-msg** - receiving message file path
+- ✅ **post-commit** - running after successful commit
+- ✅ **post-commit** - cannot block commits
+- ✅ **post-commit** - triggering notifications
+- ✅ **post-checkout** - running after branch checkout
+- ✅ **post-checkout** - receiving previous/new HEAD
+- ✅ **post-checkout** - detecting branch vs file checkout
+- ✅ **post-merge** - running after git merge
+- ✅ **post-merge** - detecting squash merge
+- ✅ **prepare-commit-msg** - modifying message before editor
+- ✅ **prepare-commit-msg** - receiving message source
+- ✅ **pre-push** - blocking push to protected branch
+- ✅ **pre-push** - receiving remote name and URL
+- ✅ **pre-push** - running tests before push
+- ✅ **pre-rebase** - blocking rebase of certain branches
+- ✅ Multiple hooks working in sequence
+- ✅ Hooks sharing state via files
+- ✅ Hooks accessing FISHOOK environment variables
 
 ## Adding New Tests
 

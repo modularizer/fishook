@@ -14,6 +14,8 @@
     "test:install": "bats tests/test_install.bats",
     "test:integration": "bats tests/test_integration.bats",
     "test:helpers": "bats tests/test_helpers.bats",
+    "test:common": "bats tests/test_common_utils.bats",
+    "test:hooks": "bats tests/test_various_hooks.bats",
     "fishook": "./fishook.sh",
     "explain": "./fishook.sh explain",
     "postinstall": "./fishook.sh install",
