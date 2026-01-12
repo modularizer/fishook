@@ -5,7 +5,7 @@ BATS-based test suite for the fishook git hook runner.
 ## Running Tests
 
 ```bash
-# Run all tests (69 tests)
+# Run all tests (109 tests)
 npm test
 
 # Run specific test files
@@ -14,6 +14,7 @@ npm run test:integration  # Integration tests (12 tests)
 npm run test:helpers      # Helper utility tests (11 tests)
 npm run test:common       # Common utilities tests (15 tests)
 npm run test:hooks        # Various git hooks tests (23 tests)
+npm run test:env          # Arguments and environment tests (40 tests)
 ```
 
 ## Test Structure
@@ -27,6 +28,7 @@ tests/
 ├── test_helpers.bats       # Tests for common/* helper utilities
 ├── test_common_utils.bats  # Tests for all common/ utilities (forbid-file-pattern, pcsed, etc.)
 ├── test_various_hooks.bats # Tests for various git hooks (commit-msg, post-commit, pre-push, etc.)
+├── test_args_and_env.bats  # Tests for hook arguments and environment variables
 └── fixtures/               # Test fixtures and sample configs
     └── configs/            # Sample fishook.json configurations
 ```
@@ -116,6 +118,31 @@ Available in `helpers.bash`:
 - ✅ Multiple hooks working in sequence
 - ✅ Hooks sharing state via files
 - ✅ Hooks accessing FISHOOK environment variables
+
+### Hook Arguments & Environment Tests (test_args_and_env.bats) - 40 tests
+- ✅ **Base environment variables** (12 tests)
+  - FISHOOK_REPO_ROOT, FISHOOK_REPO_NAME, FISHOOK_HOOK
+  - FISHOOK_COMMON, FISHOOK_CONFIG_PATH, FISHOOK_CONFIG_DIR
+  - FISHOOK_GIT_DIR, FISHOOK_HOOKS_PATH, FISHOOK_CWD
+  - FISHOOK_DRY_RUN, FISHOOK_ARGV0
+- ✅ **File event variables** (7 tests)
+  - FISHOOK_PATH, FISHOOK_ABS_PATH
+  - FISHOOK_EVENT, FISHOOK_EVENT_KIND, FISHOOK_STATUS
+- ✅ **Hook-specific arguments** (15 tests)
+  - commit-msg: $1 = message file path
+  - prepare-commit-msg: $1 = message file, $2 = source, $3 = SHA
+  - post-checkout: $1 = prev HEAD, $2 = new HEAD, $3 = branch flag
+  - pre-push: $1 = remote name, $2 = remote URL
+  - post-merge: $1 = squash flag
+  - FISHOOK_REMOTE_NAME, FISHOOK_REMOTE_URL
+- ✅ **FISHOOK_ARGS** (2 tests)
+  - Contains all hook arguments
+  - Properly quoted for spaces
+- ✅ **Legacy compatibility** (2 tests)
+  - GIT_HOOK_KEY, GIT_HOOK_ARGS
+- ✅ **Variable correctness** (2 tests)
+  - Absolute paths, correct extensions
+  - Multiple variables set simultaneously
 
 ## Adding New Tests
 

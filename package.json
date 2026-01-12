@@ -16,6 +16,7 @@
     "test:helpers": "bats tests/test_helpers.bats",
     "test:common": "bats tests/test_common_utils.bats",
     "test:hooks": "bats tests/test_various_hooks.bats",
+    "test:env": "bats tests/test_args_and_env.bats",
     "fishook": "./fishook.sh",
     "explain": "./fishook.sh explain",
     "postinstall": "./fishook.sh install",

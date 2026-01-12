@@ -946,6 +946,7 @@ run_hook_for_config() {
   # Temporarily set CONFIG_PATH for this config file
   local ORIGINAL_CONFIG_PATH="$CONFIG_PATH"
   export CONFIG_PATH="$config_file"
+  export FISHOOK_CONFIG_PATH="$CONFIG_PATH"
 
   # Set config directory scope (files must be at this level or below)
   local config_dir
