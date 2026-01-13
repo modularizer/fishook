@@ -341,7 +341,7 @@ write_sample_config() {
   cat >"$path" <<'EOF'
 {
   "pre-commit": {
-    "onFileEvent": "echo committing file $FISHOOK_PATH",
+    "onFileEvent": "echo committing file $FISHOOK_PATH"
   }
 }
 EOF
