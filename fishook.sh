@@ -2346,6 +2346,8 @@ do_install() {
 
   local -a hook_args=()
   mapfile -d '' -t hook_args < <(parse_flags "$@")
+  hook_args=("${hook_args[@]:0:${#hook_args[@]}-1}")
+
 
   [[ -n "$HOOKS_PATH" ]] || HOOKS_PATH="$(default_hooks_path)"
   mkdir -p "$HOOKS_PATH"
@@ -2355,7 +2357,9 @@ do_install() {
 
   # Determine which hooks to install
   local -a hooks_to_install=()
+
   if [[ "${#hook_args[@]}" -eq 0 ]]; then
+    echo "ALL_HOOKS: " "${ALL_HOOKS[@]}"
     # No arguments: install all hooks
     hooks_to_install=("${ALL_HOOKS[@]}")
   else
@@ -2405,7 +2409,9 @@ do_install() {
         write_stub "$hook" "$file"
         ;;
       *)
-        die "invalid choice: $choice"
+        bak="${file}.bak.$(timestamp)"
+        mv "$file" "$bak"
+        write_stub "$hook" "$file"
         ;;
     esac
   done
