@@ -2361,7 +2361,7 @@ do_install() {
   else
     # Arguments provided: validate and install only specified hooks
     for hook in "${hook_args[@]}"; do
-      if ! -n "$hook"; then
+      if ! [[ -n "$hook" ]]; then
         continue
       fi
       if ! hook_known "$hook"; then
@@ -2433,7 +2433,7 @@ do_uninstall() {
   else
     # Arguments provided: validate and uninstall only specified hooks
     for hook in "${hook_args[@]}"; do
-      if ! -n "$hook"; then
+      if ! [[ -n "$hook" ]]; then
         continue
       fi
       if ! hook_known "$hook"; then
